@@ -9,9 +9,8 @@ import { StagewiseToolbar } from '@stagewise/toolbar-next';
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "SnippetSphere - AI-Powered Codebase Exploration",
-  description: "Upload your code and unlock insights through search, chat, summarize, and visualize.",
-    generator: 'v0.dev'
+  title: "SnippetSphere",
+  description: "Upload your code and unlock insights through search, chat, summarize, and visualize.",  
 }
 
 export default function RootLayout({
@@ -21,6 +20,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/logo.png" />
+      </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <SessionProvider>
