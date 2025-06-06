@@ -106,7 +106,6 @@ export default function LandingPage() {
                   Upload Your Codebase
                 </Button>
                 <Button
-                  variant="outline"
                   className="bg-white border-4 border-black text-black font-black uppercase text-lg px-8 py-4 h-auto hover:bg-[#F0F0F0] hover:transform hover:translate-y-1 transition-all duration-300 shadow-[6px_6px_0px_#000000] hover:shadow-[3px_3px_0px_#000000]"
                 >
                   Watch Demo
@@ -142,10 +141,10 @@ export default function LandingPage() {
                     <div className="ml-4">return results</div>
                   </div>
                   <div className="bg-[#FFFF00] text-black p-4 border-2 border-black font-mono text-sm">
-                    <div className="mb-2 font-bold">// chat.js</div>\
-                    <div>function askAI() {</div>
+                    <div className="mb-2 font-bold">// chat.js</div>
+                    <div>function askAI() &#123;</div>
                     <div className="ml-4">return answer;</div>
-                    <div>};</div>
+                    <div>&#125;;</div>
                   </div>
                   <div className="bg-[#FF3F3F] text-white p-4 border-2 border-black font-mono text-sm">
                     <div className="mb-2">// visualize.ts</div>
