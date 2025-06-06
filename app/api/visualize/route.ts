@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getMilvusClient } from '../../../lib/milvus';
-
-const COLLECTION_NAME = 'code_embeddings';
+import { getMilvusClient, COLLECTION_NAME, queryBySessionId } from '../../../lib/milvus';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,8 +9,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Invalid or missing sessionId.', graph: {} }, { status: 400 });
     }
 
-    const zillizClient = await getMilvusClient();
-    const sessionChunks = await zillizClient.queryBySessionId(sessionId);
+    const sessionChunks = await queryBySessionId(sessionId);
 
     if (!sessionChunks || sessionChunks.length === 0) {
       return NextResponse.json({ success: false, message: 'No code indexed for this session ID in Zilliz. Please upload and index code first.', graph: {} }, { status: 404 });
@@ -23,7 +20,7 @@ export async function POST(req: NextRequest) {
     const nodes: Array<{ id: string; label: string }> = [];
     const edges: Array<{ from: string; to: string }> = [];
 
-    const uniqueFilePaths = Array.from(new Set(sessionChunks.map(chunk => chunk.filePath)));
+    const uniqueFilePaths = Array.from(new Set(sessionChunks.map(chunk => chunk.file_path)));
 
     uniqueFilePaths.forEach(filePath => {
       nodes.push({ id: filePath, label: filePath.split('/').pop() || filePath });

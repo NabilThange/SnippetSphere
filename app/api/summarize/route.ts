@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Invalid or missing filePath.', summary: '' }, { status: 400 });
     }
 
-    const fullPath = path.join(os.tmpdir(), filePath);
+    const fullPath = filePath;
     let fileContent: string;
 
     try {

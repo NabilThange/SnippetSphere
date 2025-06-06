@@ -1,6 +1,15 @@
 // lib/milvus.ts
 import { MilvusClient, DataType } from '@zilliz/milvus2-sdk-node';
 
+interface CodeChunk {
+  id: number;
+  content: string;
+  file_path: string; // Consistent with Milvus schema
+  embedding: number[];
+  sessionId: string;
+  similarity?: number; // Score from search
+}
+
 const COLLECTION_NAME = 'code_embeddings';
 
 const getMilvusClient = async () => {
@@ -45,7 +54,7 @@ const getMilvusClient = async () => {
           {
             name: 'embedding',
             data_type: DataType.FloatVector,
-            dimension: 1536 // Adjust based on your embedding model
+            type_params: { dim: '768' }
           }
         ],
         enable_dynamic_field: true
@@ -59,4 +68,54 @@ const getMilvusClient = async () => {
   return client;
 };
 
-export { getMilvusClient, COLLECTION_NAME }; 
+async function queryBySessionId(sessionId: string): Promise<any[]> {
+  const client = await getMilvusClient();
+  try {
+    const queryResult = await client.query({
+      collection_name: COLLECTION_NAME,
+      filter: `sessionId == "${sessionId}"`,
+      output_fields: ['content', 'file_path', 'embedding', 'sessionId'],
+    });
+    return queryResult.data || [];
+  } catch (error) {
+    console.error(`Error querying data for session ${sessionId}:`, error);
+    throw new Error(`Failed to query session data: ${error}`);
+  }
+}
+
+async function searchBySessionId(
+  queryEmbedding: number[],
+  sessionId: string,
+  limit: number = 10
+): Promise<CodeChunk[]> {
+  const client = await getMilvusClient();
+  try {
+    const searchResult = await client.search({
+      collection_name: COLLECTION_NAME,
+      vectors: [queryEmbedding],
+      limit: limit,
+      filter: `sessionId == "${sessionId}"`,
+      output_fields: ['content', 'file_path', 'embedding', 'sessionId'], // Ensure all CodeChunk fields are fetched
+    });
+
+    const results: CodeChunk[] = [];
+    if (searchResult.results && searchResult.results[0]) {
+      searchResult.results[0].forEach((hit: any) => {
+        results.push({
+          id: hit.id,
+          content: hit.content,
+          file_path: hit.file_path,
+          embedding: hit.embedding,
+          sessionId: hit.sessionId,
+          similarity: hit.score, // Milvus returns the similarity score as 'score'
+        });
+      });
+    }
+    return results;
+  } catch (error) {
+    console.error(`Error searching data for session ${sessionId}:`, error);
+    throw new Error(`Failed to search session data: ${error}`);
+  }
+}
+
+export { getMilvusClient, COLLECTION_NAME, queryBySessionId, searchBySessionId }; 

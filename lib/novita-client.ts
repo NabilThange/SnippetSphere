@@ -48,8 +48,9 @@ class NovitaClient {
     try {
       const input = Array.isArray(text) ? text : [text];
       const response = await this.client.post<EmbeddingResponse>('/embeddings', {
-        model: 'text-embedding-ada-002', // Replace with appropriate Novita.ai embedding model
+        model: 'baai/bge-m3',
         input: input,
+        encoding_format: "float",
       });
       return response.data;
     } catch (error) {
@@ -63,7 +64,7 @@ class NovitaClient {
     }
   }
 
-  async chatCompletion(messages: Array<{ role: string; content: string }>, model: string = 'gpt-3.5-turbo'): Promise<ChatCompletionResponse> {
+  async chatCompletion(messages: Array<{ role: string; content: string }>, model: string = 'deepseek/deepseek-v3-0324'): Promise<ChatCompletionResponse> {
     try {
       const response = await this.client.post<ChatCompletionResponse>('/chat/completions', {
         model: model,
@@ -81,7 +82,7 @@ class NovitaClient {
     }
   }
 
-  async summarizeText(text: string, model: string = 'gpt-3.5-turbo'): Promise<SummarizeResponse> {
+  async summarizeText(text: string, model: string = 'deepseek/deepseek-v3-0324'): Promise<SummarizeResponse> {
     try {
       const messages = [
         { role: 'system', content: 'You are a helpful assistant that summarizes text.' },

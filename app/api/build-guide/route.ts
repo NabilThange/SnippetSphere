@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import NovitaClient from '../../../lib/novita-client';
-import { getMilvusClient } from '../../../lib/milvus';
+import { getMilvusClient, COLLECTION_NAME, queryBySessionId } from '../../../lib/milvus';
 
 const novitaClient = new NovitaClient(process.env.NOVITA_API_KEY || '');
-
-const COLLECTION_NAME = 'code_embeddings';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,8 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Invalid or missing sessionId.', steps: [] }, { status: 400 });
     }
 
-    const zillizClient = await getMilvusClient();
-    const sessionChunks = await zillizClient.queryBySessionId(sessionId);
+    const sessionChunks = await queryBySessionId(sessionId);
 
     if (!sessionChunks || sessionChunks.length === 0) {
       return NextResponse.json({ success: false, message: 'No code indexed for this session ID in Zilliz. Please upload and index code first.', steps: [] }, { status: 404 });

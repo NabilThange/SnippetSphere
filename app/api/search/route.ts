@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import NovitaClient from '../../../lib/novita-client';
-import { getMilvusClient } from '../../../lib/milvus';
+import { getMilvusClient, COLLECTION_NAME, searchBySessionId } from '../../../lib/milvus';
 
 const novitaClient = new NovitaClient(process.env.NOVITA_API_KEY || '');
-
-const COLLECTION_NAME = 'code_embeddings';
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,18 +28,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Failed to generate embedding for the query.', results: [] }, { status: 500 });
     }
 
-    // Use ZillizClient to search
-    const zillizClient = await getMilvusClient();
-    const zillizSearchResults = await zillizClient.searchVectors(queryEmbedding, sessionId, limit);
+    const zillizSearchResults = await searchBySessionId(queryEmbedding, sessionId, limit);
 
     if (zillizSearchResults.length === 0) {
       return NextResponse.json({ success: true, message: 'No matching results found for this query in Zilliz.', results: [] }, { status: 200 });
     }
 
     const formattedResults = zillizSearchResults.map(hit => ({
-      filePath: hit.filePath,
+      filePath: hit.file_path,
       content: hit.content,
-      similarity: hit.similarity, // Zilliz returns the score
+      similarity: hit.similarity,
     }));
 
     return NextResponse.json({ success: true, message: 'Search completed successfully from Zilliz.', results: formattedResults }, { status: 200 });
