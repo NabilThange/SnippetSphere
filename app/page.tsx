@@ -31,10 +31,10 @@ export default function LandingPage() {
       <div className="pt-24">
         {/* Hero Section - Exact Copy of Reference */}
         <section className="py-16 bg-white">
-          <div className="container mx-auto px-6 max-w-7xl">
+          <div className="container mx-auto px-6 max-w-7xl ">
             <div className="grid lg:grid-cols-2 gap-16 items-start">
               {/* Left Column - Content */}
-              <div className="space-y-8">
+              <div className="space-y-8 ml-[70px]">
                 {/* Main Headline */}
                 <h1 className="text-6xl md:text-7xl font-black text-black leading-tight tracking-tight">
                   Explore code
@@ -63,11 +63,11 @@ export default function LandingPage() {
 
               {/* Right Column - Illustration */}
               <div className="flex justify-center lg:justify-end">
-                <div className="w-full max-w-lg">
+                <div className="relative">
                   <img
-                    src="/placeholder.svg?height=500&width=400"
-                    alt="Diverse group of developers collaborating"
-                    className="w-full h-auto"
+                    src="/land2.png"
+                    alt="SnippetSphere illustration"
+                    className="w-full h-full object-cover border-4 border-black shadow-[5px_4px_0px_#000000]"
                   />
                 </div>
               </div>
@@ -81,7 +81,7 @@ export default function LandingPage() {
                   {/* Centered Illustration */}
                   <div className="flex-shrink-0 mb-4">
                     <img
-                      src="/placeholder.svg?height=100&width=100"
+                      src="/blue1.png"
                       alt="Community illustration"
                       className="w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 mx-auto"
                     />
@@ -96,11 +96,11 @@ export default function LandingPage() {
                         your privacy!
                       </p>
                     </div>
-                    <div className="mt-4">
+                    {/* <div className="mt-4">
                       <a href="#" className="text-black font-bold underline hover:no-underline text-sm md:text-base">
                         Check the features
                       </a>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               </div>
@@ -111,26 +111,25 @@ export default function LandingPage() {
                   {/* Centered Illustration */}
                   <div className="flex-shrink-0 mb-4">
                     <img
-                      src="/placeholder.svg?height=100&width=100"
+                      src="/ai.png"
                       alt="Support team illustration"
-                      className="w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 mx-auto"
+                      className="w-[86px] h-20 md:w-[102px] md:h-24 lg:w-[118px] lg:h-28 mx-auto"
                     />
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xl md:text-2xl font-black text-black mb-3 md:mb-4">Free AI support</h3>
+                      <h3 className="text-xl md:text-2xl font-black text-black mb-3 md:mb-4">AI-Powered Code Learning</h3>
                       <p className="text-black font-normal leading-relaxed text-sm md:text-base">
-                        We're always here whenever you need us, our AI assistant will answer all your questions
-                        immediately.
+                        Master any codebase faster than ever! SnippetSphere's AI assistant breaks down complex code, teaches you step by step, and helps you build with confidence — no matter your experience level.
                       </p>
                     </div>
-                    <div className="mt-4">
+                    {/* <div className="mt-4">
                       <a href="#" className="text-black font-bold underline hover:no-underline text-sm md:text-base">
-                        Compare plans
+                        Learn more about SnippetSphere
                       </a>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               </div>

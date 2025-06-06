@@ -171,6 +171,12 @@ importers:
         specifier: ^3.25.55
         version: 3.25.55
     devDependencies:
+      '@stagewise/toolbar':
+        specifier: ^0.4.3
+        version: 0.4.3
+      '@stagewise/toolbar-next':
+        specifier: ^0.4.3
+        version: 0.4.3(@types/react@19.1.6)(next@15.3.3(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)
       '@types/jszip':
         specifier: ^3.4.1
         version: 3.4.1
@@ -183,6 +189,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.1.6
         version: 19.1.6(@types/react@19.1.6)
+      cross-env:
+        specifier: ^7.0.3
+        version: 7.0.3
       postcss:
         specifier: ^8.5.4
         version: 8.5.4
@@ -1153,6 +1162,22 @@ packages:
   '@radix-ui/rect@1.1.0':
     resolution: {integrity: sha512-A9+lCBZoaMJlVKcRBz2YByCG+Cp2t6nAnMnNba+XiWxnj6r4JUFqfsgwocMBZU9LPtdxC6wB56ySYpc7LQIoJg==}
 
+  '@stagewise/toolbar-next@0.4.3':
+    resolution: {integrity: sha512-9REaoM2AKV/nKiU2LNIPhgfe0cmouU7NbT9Czey4SAfPW0hRZBQ5pii1XcWUJLCQ25aBzIBcOFZipZSYBSFJ/A==}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      next: '>=14.0.0'
+      react: '>=18.0.0'
+
+  '@stagewise/toolbar-react@0.4.3':
+    resolution: {integrity: sha512-VmubMXGYepGEq1nS5ihi9/RHTAxR9XXGmJpGJEnkCrJ5KQ9XVeog3LrhoOPa3EM3hrVNG3fMFz+bxZ9YOgzH2w==}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      react: '>=18.0.0'
+
+  '@stagewise/toolbar@0.4.3':
+    resolution: {integrity: sha512-e0fTH4rANukY0dHa60C1Yle4oVDkcNoyenQTtiyEXVmwOXMUs7BeAJSPk8Q4IL0X0mOws43U7DGGTxt12CD53A==}
+
   '@swc/counter@0.1.3':
     resolution: {integrity: sha512-e2BR4lsJkkRlKZ/qCHPw9ZaSxc0MVUd7gtbtaB7aMvHeJVYe8sOB8DBZkP2DtISHGSku9sCK6T6cnY0CtXrOCQ==}
 
@@ -1354,6 +1379,11 @@ packages:
 
   core-util-is@1.0.3:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
+
+  cross-env@7.0.3:
+    resolution: {integrity: sha512-+/HKd6EgcQCJGh2PSjZuUitQBQynKor4wrFbRg4DtAgS1aWO+gU52xpH7M9ScGgXSYmAVS9bIJ8EzuaGw0oNAw==}
+    engines: {node: '>=10.14', npm: '>=6', yarn: '>=1'}
+    hasBin: true
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -3174,6 +3204,21 @@ snapshots:
 
   '@radix-ui/rect@1.1.0': {}
 
+  '@stagewise/toolbar-next@0.4.3(@types/react@19.1.6)(next@15.3.3(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      '@stagewise/toolbar-react': 0.4.3(@types/react@19.1.6)(react@19.1.0)
+      '@types/react': 19.1.6
+      next: 15.3.3(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      react: 19.1.0
+
+  '@stagewise/toolbar-react@0.4.3(@types/react@19.1.6)(react@19.1.0)':
+    dependencies:
+      '@stagewise/toolbar': 0.4.3
+      '@types/react': 19.1.6
+      react: 19.1.0
+
+  '@stagewise/toolbar@0.4.3': {}
+
   '@swc/counter@0.1.3': {}
 
   '@swc/helpers@0.5.15':
@@ -3393,6 +3438,10 @@ snapshots:
   commander@4.1.1: {}
 
   core-util-is@1.0.3: {}
+
+  cross-env@7.0.3:
+    dependencies:
+      cross-spawn: 7.0.6
 
   cross-spawn@7.0.6:
     dependencies:

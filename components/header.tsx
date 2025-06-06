@@ -50,7 +50,7 @@ export default function Header() {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 bg-white border-b-4 border-black py-5 transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 right-0 z-50 bg-white border-b-4 border-black py-3 transition-transform duration-300 ease-in-out ${
           isVisible ? "translate-y-0" : "-translate-y-full"
         }`}
       >

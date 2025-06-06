@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "RUNTIME_EXECUTION=true next dev",
+    "dev": "cross-env RUNTIME_EXECUTION=true next dev",
     "build": "next build",
-    "start": "RUNTIME_EXECUTION=true next start",
+    "start": "cross-env RUNTIME_EXECUTION=true next start",
     "lint": "next lint"
   },
   "dependencies": {
@@ -65,10 +65,13 @@
     "zod": "^3.25.55"
   },
   "devDependencies": {
+    "@stagewise/toolbar": "^0.4.3",
+    "@stagewise/toolbar-next": "^0.4.3",
     "@types/jszip": "^3.4.1",
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
+    "cross-env": "^7.0.3",
     "postcss": "^8.5.4",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3"

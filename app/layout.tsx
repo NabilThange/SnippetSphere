@@ -4,6 +4,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SessionProvider } from "@/lib/session-context"
 import { Toaster } from "@/components/ui/toaster";
+import { StagewiseToolbar } from '@stagewise/toolbar-next';
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -23,6 +24,11 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <SessionProvider>
+            <StagewiseToolbar
+              config={{
+                plugins: [], // Add your custom plugins here
+              }}
+            />
             {children}
           </SessionProvider>
           <Toaster />

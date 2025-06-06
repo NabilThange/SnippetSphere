@@ -77,9 +77,9 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+      <section className="pt-10 pb-10 bg-white">
+        <div className="container mx-auto px-4 max-w-5xl">
+          <div className="grid lg:grid-cols-[7fr_1fr] gap-12 items-center">
             {/* Hero Content */}
             <div className="space-y-8">
               <div className="space-y-4">
@@ -131,48 +131,17 @@ export default function LandingPage() {
             </div>
 
             {/* Hero Illustration */}
-            <div className="relative">
-              <div className="bg-[#F0F0F0] border-4 border-black p-8 shadow-[8px_8px_0px_#000000]">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Code Blocks */}
-                  <div className="bg-black text-[#00FF88] p-4 border-2 border-black font-mono text-sm">
-                    <div className="mb-2 text-white">// search.py</div>
-                    <div>def find_code():</div>
-                    <div className="ml-4">return results</div>
-                  </div>
-                  <div className="bg-[#FFFF00] text-black p-4 border-2 border-black font-mono text-sm">
-                    <div className="mb-2 font-bold">// chat.js</div>
-                    <div>function askAI() &#123;</div>
-                    <div className="ml-4">return answer;</div>
-                    <div>&#125;;</div>
-                  </div>
-                  <div className="bg-[#FF3F3F] text-white p-4 border-2 border-black font-mono text-sm">
-                    <div className="mb-2">// visualize.ts</div>
-                    <div>const graph = () =&gt;</div>
-                    <div className="ml-4">render();</div>
-                  </div>
-                  <div className="bg-[#00FF88] text-black p-4 border-2 border-black font-mono text-sm">
-                    <div className="mb-2 font-bold">// summary.py</div>
-                    <div>def summarize():</div>
-                    <div className="ml-4">return insights</div>
-                  </div>
-                </div>
-                
-                {/* AI Brain Illustration */}
-                <div className="mt-6 text-center">
-                  <div className="inline-block bg-white border-4 border-black p-4 shadow-[4px_4px_0px_#000000]">
-                    <div className="text-4xl">🧠</div>
-                    <div className="font-black text-sm uppercase mt-2">AI Processing</div>
-                  </div>
-                </div>
-              </div>
+            <div className="relative w-64 h-40 flex items-center justify-center">
+              <div
+                className="w-[90%] h-[90%] object-cover border-4 border-black shadow-[6px_8px_0px_#000000] bg-blue-500"
+              />
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 bg-[#F5F5F5]">
+      <section id="features" className="pt-10 pb-10 bg-[#F5F5F5]">
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-6xl font-black uppercase text-black mb-4 tracking-tight">
@@ -296,7 +265,7 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works Section */}
-      <section id="how-it-works" className="py-20 bg-white">
+      <section id="how-it-works" className="pt-10 pb-10 bg-white">
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-6xl font-black uppercase text-black mb-4 tracking-tight">
@@ -345,7 +314,7 @@ export default function LandingPage() {
       </section>
 
       {/* Testimonials Section */}
-      <section id="testimonials" className="py-20 bg-[#F5F5F5]">
+      <section id="testimonials" className="pt-10 pb-10 bg-[#F5F5F5]">
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-6xl font-black uppercase text-black mb-4 tracking-tight">
@@ -369,7 +338,7 @@ export default function LandingPage() {
               </p>
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-black text-[#FFFF00] border-2 border-black flex items-center justify-center mr-4 font-black">
-                  JS
+                  <Users className="w-6 h-6" />
                 </div>
                 <div>
                   <div className="font-black text-black">Jane Smith</div>
@@ -390,7 +359,7 @@ export default function LandingPage() {
               </p>
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-black text-[#FFB3BA] border-2 border-black flex items-center justify-center mr-4 font-black">
-                  MD
+                  <Users className="w-6 h-6" />
                 </div>
                 <div>
                   <div className="font-black text-black">Mike Davis</div>
@@ -401,7 +370,7 @@ export default function LandingPage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-16">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8">
             <div className="text-center bg-white border-4 border-black p-6 shadow-[4px_4px_0px_#000000]">
               <Users className="w-8 h-8 text-black mx-auto mb-2" />
               <div className="text-2xl font-black text-black">5,000+</div>
@@ -427,7 +396,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-black">
+      <section className="pt-10 pb-10 bg-black">
         <div className="container mx-auto px-4 max-w-7xl text-center">
           <h2 className="text-4xl md:text-6xl font-black uppercase text-white mb-6 tracking-tight">
             Ready to Explore
@@ -471,7 +440,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer id="contact" className="bg-white border-t-4 border-black py-12">
+      <footer id="contact" className="bg-white border-t-4 border-black pt-6 pb-6">
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="grid md:grid-cols-4 gap-8">
             {/* Logo & Description */}
