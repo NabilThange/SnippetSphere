@@ -11,69 +11,76 @@ import Footer from "@/components/footer"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
 import type { SearchResult, SearchMode } from "@/lib/types"
+import { apiClient } from "@/lib/api-client"
+import { useSession } from "@/lib/session-context"
 
 export default function AppPage() {
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
+  const { sessionId, setSessionId, isUploading, uploadedFilePaths, setUploadedFilePaths, uploadError, setUploadError } = useSession()
   const [isSearching, setIsSearching] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
   const [currentMode, setCurrentMode] = useState<SearchMode>("build-understand")
   const { toast } = useToast()
 
-  const handleUploadSuccess = (id: string) => {
-    setSessionId(id)
-    toast({
-      title: "UPLOAD SUCCESSFUL",
-      description: "YOUR CODEBASE HAS BEEN PROCESSED AND IS READY FOR ANALYSIS.",
-      variant: "default",
-    })
-  }
-
-  const handleUploadError = (error: string) => {
-    toast({
-      title: "UPLOAD FAILED",
-      description: error.toUpperCase(),
-      variant: "destructive",
-    })
-  }
-
   const handleSearch = async (query: string) => {
-    if (!sessionId) return
+    if (!sessionId) {
+      toast({
+        title: "ACTION FAILED",
+        description: "PLEASE UPLOAD A CODEBASE FIRST.",
+        variant: "destructive",
+      })
+      return
+    }
 
     setIsSearching(true)
     setSearchQuery(query)
 
     try {
-      // Handle chat mode differently
       if (currentMode === "chat") {
-        // Dispatch custom event for chat mode
-        window.dispatchEvent(new CustomEvent("chatMessage", { detail: { message: query } }))
-        setIsSearching(false)
-        return
+        // Dispatch custom event for chat mode, chat-mode-content will handle the API call.
+        window.dispatchEvent(new CustomEvent("chatMessage", { detail: { message: query, sessionId } }))
+        toast({
+          title: "CHAT MESSAGE SENT",
+          description: "GENERATING RESPONSE...",
+        })
+      } else if (currentMode === "search") {
+        const apiResponse = await apiClient.searchCode(query, sessionId)
+        setResults(
+          apiResponse.results.map((item) => ({
+            fileName: item.filePath,
+            codeSnippet: item.content,
+            summary: `Similarity: ${item.similarity.toFixed(4)}`,
+            // You can add other fields from SearchResultItem if needed, mapping them appropriately
+          }))
+        )
+        toast({
+          title: "SEARCH COMPLETED",
+          description: `FOUND ${apiResponse.results.length} RESULTS FOR "${query.toUpperCase()}"`,
+        })
+      } else if (currentMode === "summarize") {
+        toast({
+          title: "ACTION NOT SUPPORTED",
+          description: "QUERY VIA SEARCH BAR IS NOT SUPPORTED IN SUMMARIZE MODE. SELECT A FILE.",
+          variant: "destructive",
+        })
+      } else if (currentMode === "build-understand") {
+        toast({
+          title: "ACTION NOT SUPPORTED",
+          description: "QUERY VIA SEARCH BAR IS NOT SUPPORTED IN BUILD & UNDERSTAND MODE.",
+          variant: "destructive",
+        })
+      } else if (currentMode === "visualize") {
+        toast({
+          title: "ACTION NOT SUPPORTED",
+          description: "QUERY VIA SEARCH BAR IS NOT SUPPORTED IN VISUALIZE MODE.",
+          variant: "destructive",
+        })
       }
-
-      // Build & Understand mode doesn't need search functionality
-      if (currentMode === "build-understand") {
-        setIsSearching(false)
-        return
-      }
-
-      // Simulate API call for other modes
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      // Mock results based on mode
-      const mockResults = getMockResultsByMode(currentMode, query)
-
-      setResults(mockResults)
-      toast({
-        title: `${currentMode.toUpperCase()} COMPLETED`,
-        description: `FOUND ${mockResults.length} RESULTS FOR "${query.toUpperCase()}"`,
-      })
-    } catch (error) {
+    } catch (error: any) {
+      console.error("API call failed:", error)
       toast({
         title: `${currentMode.toUpperCase()} FAILED`,
-        description: "AN ERROR OCCURRED. PLEASE TRY AGAIN.",
+        description: error.message || "AN UNEXPECTED ERROR OCCURRED. PLEASE TRY AGAIN.",
         variant: "destructive",
       })
       setResults([])
@@ -82,47 +89,19 @@ export default function AppPage() {
     }
   }
 
-  const getMockResultsByMode = (mode: SearchMode, query: string): SearchResult[] => {
-    const baseResults = [
-      {
-        fileName: "utils.py",
-        functionName: "parse_json",
-        codeSnippet: `def parse_json(json_str):\n    """Parse JSON string and handle errors gracefully."""\n    try:\n        return json.loads(json_str)\n    except json.JSONDecodeError as e:\n        logger.error(f"Failed to parse JSON: {e}")\n        return None`,
-        summary: "Parses JSON strings with error handling and logging.",
-        linesOfCode: 8,
-        language: "Python",
-        tags: ["function", "json", "error-handling"],
-        mode: mode,
-      },
-      {
-        fileName: "api/handlers.js",
-        functionName: "processData",
-        codeSnippet: `function processData(data) {\n  if (!data || typeof data !== 'object') {\n    throw new Error('Invalid data format');\n  }\n  \n  const result = {\n    id: data.id,\n    name: data.name,\n    timestamp: new Date().toISOString()\n  };\n  \n  return result;\n}`,
-        summary: "Validates and processes data objects, adding timestamps.",
-        linesOfCode: 12,
-        language: "JavaScript",
-        tags: ["function", "validation", "data-processing"],
-        mode: mode,
-      },
-    ]
-
-    // Only return results for search mode, other modes handle their own content
-    return mode === "search" ? baseResults : []
-  }
-
   const handleClearSession = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    // Reset all states related to the session
+    // For now, only clear local state. Actual Zilliz data deletion would require a backend call.
+    // A new API endpoint could be created in the future for this.
     setSessionId(null)
+    setUploadedFilePaths([]) // Clear uploaded paths from context
+    setUploadError(null) // Clear any upload errors
     setResults([])
     setSearchQuery("")
-    setIsUploading(false) // Reset the uploading state to show the upload interface
     setCurrentMode("build-understand") // Reset to default mode
 
     toast({
       title: "SESSION CLEARED",
-      description: "YOUR UPLOADED CODEBASE AND ANALYSIS DATA HAVE BEEN DELETED.",
+      description: "YOUR UPLOADED CODEBASE AND ANALYSIS DATA HAVE BEEN CLEARED LOCALLY.",
     })
   }
 
@@ -157,10 +136,7 @@ export default function AppPage() {
           {!sessionId ? (
             <div className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
               <UploadSection
-                onUploadStart={() => setIsUploading(true)}
-                onUploadSuccess={handleUploadSuccess}
-                onUploadError={handleUploadError}
-                isUploading={isUploading}
+                // Removed props as UploadSection now uses useSession internally
               />
             </div>
           ) : (
@@ -176,7 +152,7 @@ export default function AppPage() {
               </div>
 
               {/* Only show search interface for modes that need it */}
-              {currentMode !== "build-understand" && (
+              {currentMode !== "build-understand" && currentMode !== "summarize" && currentMode !== "visualize" && (
                 <SearchInterface onSearch={handleSearch} isSearching={isSearching} currentMode={currentMode} />
               )}
             </>

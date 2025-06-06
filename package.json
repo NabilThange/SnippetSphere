@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "RUNTIME_EXECUTION=true next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "RUNTIME_EXECUTION=true next start",
     "lint": "next lint"
   },
   "dependencies": {
@@ -37,13 +37,18 @@
     "@radix-ui/react-toggle": "1.1.1",
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
+    "@zilliz/milvus2-sdk-node": "^2.4.2",
+    "adm-zip": "^0.5.14",
     "autoprefixer": "^10.4.21",
+    "axios": "^1.7.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
+    "formidable": "^3.5.1",
     "input-otp": "1.4.1",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.454.0",
     "next": "^15.3.3",
     "next-themes": "^0.4.6",
@@ -60,6 +65,7 @@
     "zod": "^3.25.55"
   },
   "devDependencies": {
+    "@types/jszip": "^3.4.1",
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",

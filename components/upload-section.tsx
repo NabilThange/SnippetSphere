@@ -1,27 +1,16 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { Upload, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { apiClient } from "@/lib/api-client"
+import { useSession } from "@/lib/session-context"
 
-interface UploadSectionProps {
-  onUploadStart: () => void
-  onUploadSuccess: (sessionId: string) => void
-  onUploadError: (error: string) => void
-  isUploading: boolean
-}
+export default function UploadSection() {
+  const { setSessionId, isUploading, setIsUploading, setUploadedFilePaths, uploadError, setUploadError } = useSession()
 
-export default function UploadSection({
-  onUploadStart,
-  onUploadSuccess,
-  onUploadError,
-  isUploading,
-}: UploadSectionProps) {
   const [dragActive, setDragActive] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Reset progress when isUploading changes to false
@@ -77,32 +66,46 @@ export default function UploadSection({
     const validationError = validateFile(file)
 
     if (validationError) {
-      setError(validationError)
-      onUploadError(validationError)
+      setUploadError(validationError)
       return
     }
 
-    setError(null)
+    setUploadError(null)
     uploadFile(file)
   }
 
   const uploadFile = async (file: File) => {
-    onUploadStart()
+    setIsUploading(true)
+    setUploadError(null)
     setUploadProgress(0)
 
-    // Simulate file upload with progress
-    const totalSteps = 10
-    for (let i = 1; i <= totalSteps; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 300))
-      setUploadProgress((i / totalSteps) * 100)
+    const formData = new FormData()
+    formData.append("file", file)
+
+    try {
+      // Step 1: Upload the zip file
+      const uploadResponse = await apiClient.uploadFiles(formData)
+      const { files: extractedFilePaths } = uploadResponse
+
+      console.log("Upload successful. Extracted files:", extractedFilePaths)
+      setUploadedFilePaths(extractedFilePaths)
+
+      setUploadProgress(50)
+
+      // Step 2: Index the uploaded code
+      const currentSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+      await apiClient.indexCode(currentSessionId, extractedFilePaths)
+
+      console.log("Code indexing complete.")
+      setSessionId(currentSessionId)
+      setUploadProgress(100)
+
+    } catch (error: any) {
+      console.error("Upload/Indexing failed:", error)
+      setUploadError(error.message || "An unexpected error occurred during upload or indexing.")
+    } finally {
+      setIsUploading(false)
     }
-
-    // Simulate processing time
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // Simulate successful upload with session ID
-    const mockSessionId = "session_" + Math.random().toString(36).substring(2, 15)
-    onUploadSuccess(mockSessionId)
   }
 
   const handleButtonClick = () => {
@@ -145,7 +148,7 @@ export default function UploadSection({
         <div
           className={`border-4 border-dashed border-black p-8 text-center bg-white transition-transform duration-300 ${
             dragActive ? "transform -translate-y-1 shadow-[8px_8px_0px_#ff3f3f]" : "shadow-[6px_6px_0px_#000000]"
-          } ${error ? "border-[#ff3f3f]" : ""}`}
+          } ${uploadError ? "border-[#ff3f3f]" : ""}`}
           onDragEnter={handleDrag}
           onDragOver={handleDrag}
           onDragLeave={handleDrag}
@@ -157,7 +160,7 @@ export default function UploadSection({
             <Upload
               className={`w-16 h-16 mb-4 ${
                 dragActive ? "text-[#ff3f3f]" : "text-black"
-              } ${error ? "text-[#ff3f3f]" : ""}`}
+              } ${uploadError ? "text-[#ff3f3f]" : ""}`}
             />
 
             <p className="text-2xl font-black mb-2 uppercase font-mono">
@@ -176,10 +179,10 @@ export default function UploadSection({
 
             <p className="text-sm font-bold mt-4 uppercase">ONLY .ZIP FILES UP TO 100MB ARE SUPPORTED</p>
 
-            {error && (
+            {uploadError && (
               <div className="mt-4 bg-[#ff3f3f] border-4 border-black p-4 text-white font-black uppercase flex items-center shadow-[4px_4px_0px_#000000]">
                 <X className="w-6 h-6 mr-2" />
-                {error}
+                {uploadError}
               </div>
             )}
           </div>
@@ -197,8 +200,8 @@ export default function UploadSection({
             </div>
             <p className="text-black font-black uppercase font-mono">
               {uploadProgress < 100
-                ? `UPLOADING YOUR CODEBASE — ${Math.round(uploadProgress)}%`
-                : "PROCESSING YOUR CODEBASE — PLEASE WAIT..."}
+                ? `UPLOADING & INDEXING YOUR CODEBASE — ${Math.round(uploadProgress)}%`
+                : "PROCESSING COMPLETE! READY TO EXPLORE."}
             </p>
           </div>
         </div>

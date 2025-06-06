@@ -1,104 +1,59 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ZoomIn, ZoomOut, Download, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { apiClient, VisualizeNode, VisualizeEdge } from "@/lib/api-client"
+import { useSession } from "@/lib/session-context"
 
 interface VisualizeModeContentProps {
   sessionId: string
-  isSearching: boolean
+  // isSearching: boolean // This prop is likely no longer needed, but keeping for now if used elsewhere
 }
 
-interface GraphNode {
-  id: string
-  label: string
-  type: "file" | "function" | "class"
-  language: string
-  x: number
-  y: number
-  connections: string[]
-}
-
-export default function VisualizeModeContent({ sessionId, isSearching }: VisualizeModeContentProps) {
+export default function VisualizeModeContent({ sessionId }: VisualizeModeContentProps) {
   const [zoomLevel, setZoomLevel] = useState(100)
-  const [selectedFilter, setSelectedFilter] = useState<string>("all")
+  const [nodes, setNodes] = useState<VisualizeNode[]>([])
+  const [edges, setEdges] = useState<VisualizeEdge[]>([])
+  const [isLoadingVisualization, setIsLoadingVisualization] = useState(true)
+  const [visualizationError, setVisualizationError] = useState<string | null>(null)
+  const [selectedFilter, setSelectedFilter] = useState<string>("all") // Keep filter for future enhancements if needed
 
-  // Mock graph data
-  const nodes: GraphNode[] = [
-    {
-      id: "utils.py",
-      label: "utils.py",
-      type: "file",
-      language: "python",
-      x: 200,
-      y: 150,
-      connections: ["handlers.js", "user.py"],
-    },
-    {
-      id: "handlers.js",
-      label: "handlers.js",
-      type: "file",
-      language: "javascript",
-      x: 400,
-      y: 100,
-      connections: ["auth.tsx", "user.py"],
-    },
-    {
-      id: "user.py",
-      label: "user.py",
-      type: "file",
-      language: "python",
-      x: 300,
-      y: 250,
-      connections: ["auth.tsx"],
-    },
-    {
-      id: "auth.tsx",
-      label: "auth.tsx",
-      type: "file",
-      language: "typescript",
-      x: 500,
-      y: 200,
-      connections: [],
-    },
-    {
-      id: "parse_json",
-      label: "parse_json()",
-      type: "function",
-      language: "python",
-      x: 150,
-      y: 100,
-      connections: ["utils.py"],
-    },
-    {
-      id: "processData",
-      label: "processData()",
-      type: "function",
-      language: "javascript",
-      x: 450,
-      y: 50,
-      connections: ["handlers.js"],
-    },
-  ]
-
-  const getNodeColor = (node: GraphNode) => {
-    if (node.type === "file") {
-      switch (node.language) {
-        case "python":
-          return "#3776ab"
-        case "javascript":
-          return "#f7df1e"
-        case "typescript":
-          return "#3178c6"
-        default:
-          return "#000000"
+  useEffect(() => {
+    const fetchVisualizationData = async () => {
+      if (!sessionId) {
+        setIsLoadingVisualization(false);
+        return;
+      }
+      setIsLoadingVisualization(true)
+      setVisualizationError(null)
+      try {
+        const response = await apiClient.getVisualizationData(sessionId)
+        if (response.success && response.graph) {
+          setNodes(response.graph.nodes)
+          setEdges(response.graph.edges)
+        } else {
+          setVisualizationError(response.message || "Failed to fetch visualization data.")
+        }
+      } catch (error: any) {
+        console.error("Error fetching visualization data:", error)
+        setVisualizationError(error.message || "An unexpected error occurred while fetching visualization data.")
+      } finally {
+        setIsLoadingVisualization(false)
       }
     }
-    return "#00ff88"
+
+    fetchVisualizationData()
+  }, [sessionId])
+
+  const getNodeColor = (node: VisualizeNode) => {
+    // Simplified color logic as type/language might not be directly available from Zilliz query
+    return "#000000" // Default to black for all nodes
   }
 
-  const getNodeSize = (node: GraphNode) => {
-    return node.type === "file" ? 40 : 30
+  const getNodeSize = (node: VisualizeNode) => {
+    // All nodes are treated as files in the simplified visualization
+    return 40
   }
 
   const handleZoomIn = () => {
@@ -114,23 +69,72 @@ export default function VisualizeModeContent({ sessionId, isSearching }: Visuali
   }
 
   const handleExport = () => {
-    // In a real implementation, this would export the SVG
     alert("EXPORT FUNCTIONALITY WOULD BE IMPLEMENTED HERE")
   }
 
   const filteredNodes = nodes.filter((node) => {
+    // Filter logic might be limited due to simplified node structure from backend
+    // For now, only filter by 'all' or based on future node types
     if (selectedFilter === "all") return true
-    if (selectedFilter === "files") return node.type === "file"
-    if (selectedFilter === "functions") return node.type === "function"
-    return node.language === selectedFilter
+    // Add more filter conditions if node properties allow
+    return true
   })
+
+  if (!sessionId) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center py-12 border-4 border-black bg-white shadow-[6px_6px_0px_#000000] max-w-2xl">
+          <p className="text-black font-black uppercase text-xl font-mono px-8">
+            PLEASE UPLOAD A CODEBASE TO GENERATE A VISUALIZATION.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (isLoadingVisualization) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-black bg-white mx-auto mb-4 flex items-center justify-center">
+            <div className="w-8 h-8 bg-black animate-pulse"></div>
+          </div>
+          <p className="text-[#00ff88] font-black uppercase text-xl font-mono animate-pulse">GENERATING VISUALIZATION...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (visualizationError) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center py-12 border-4 border-black bg-white shadow-[6px_6px_0px_#000000] max-w-2xl">
+          <p className="text-[#ff3f3f] font-black uppercase text-xl font-mono px-8">
+            ERROR: {visualizationError.toUpperCase()}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (nodes.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center py-12 border-4 border-black bg-white shadow-[6px_6px_0px_#000000] max-w-2xl">
+          <p className="text-black font-black uppercase text-xl font-mono px-8">
+            NO VISUALIZATION DATA FOUND FOR THIS CODEBASE. IT MIGHT BE TOO SMALL OR UNSUPPORTED.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-black uppercase text-black font-mono tracking-tight">CODEBASE VISUALIZATION</h2>
         <div className="bg-[#00ff88] border-2 border-black px-3 py-1 text-black font-black text-sm uppercase">
-          {filteredNodes.length} NODES
+          {nodes.length} NODES
         </div>
       </div>
 
@@ -166,6 +170,7 @@ export default function VisualizeModeContent({ sessionId, isSearching }: Visuali
             className="bg-white border-2 border-black text-black font-black uppercase px-3 py-2 focus:outline-none focus:border-[#ff3f3f]"
           >
             <option value="all">ALL NODES</option>
+            {/* Filters below are not fully functional with simplified backend response for now */}
             <option value="files">FILES ONLY</option>
             <option value="functions">FUNCTIONS ONLY</option>
             <option value="python">PYTHON</option>
@@ -186,77 +191,80 @@ export default function VisualizeModeContent({ sessionId, isSearching }: Visuali
       <div className="bg-white border-4 border-black shadow-[6px_6px_0px_#000000] overflow-hidden">
         <div className="relative h-[500px] overflow-auto">
           <svg
-            width="600"
-            height="400"
+            width="100%" // Adjust width dynamically if needed
+            height="100%" // Adjust height dynamically if needed
             viewBox="0 0 600 400"
             className="w-full h-full"
             style={{ transform: `scale(${zoomLevel / 100})` }}
           >
             {/* Draw connections */}
-            {filteredNodes.map((node) =>
-              node.connections.map((connectionId) => {
-                const targetNode = filteredNodes.find((n) => n.id === connectionId)
-                if (!targetNode) return null
-                return (
-                  <line
-                    key={`${node.id}-${connectionId}`}
-                    x1={node.x}
-                    y1={node.y}
-                    x2={targetNode.x}
-                    y2={targetNode.y}
-                    stroke="#000000"
-                    strokeWidth="3"
-                  />
-                )
-              }),
-            )}
+            {edges.map((edge, index) => {
+              const sourceNode = nodes.find((n) => n.id === edge.from);
+              const targetNode = nodes.find((n) => n.id === edge.to);
+              if (!sourceNode || !targetNode) return null;
+
+              // Simple layout for visualization, ideally use a force-directed graph library
+              const x1 = (nodes.indexOf(sourceNode) + 0.5) * (600 / nodes.length);
+              const y1 = 150;
+              const x2 = (nodes.indexOf(targetNode) + 0.5) * (600 / nodes.length);
+              const y2 = 250;
+
+              return (
+                <line
+                  key={index}
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke="#000000"
+                  strokeWidth="2"
+                  markerEnd="url(#arrowhead)"
+                />
+              );
+            })}
 
             {/* Draw nodes */}
-            {filteredNodes.map((node) => (
-              <g key={node.id}>
-                <circle
-                  cx={node.x}
-                  cy={node.y}
-                  r={getNodeSize(node)}
-                  fill={getNodeColor(node)}
-                  stroke="#000000"
-                  strokeWidth="3"
-                  className="cursor-pointer hover:opacity-80 transition-opacity"
-                />
-                <text
-                  x={node.x}
-                  y={node.y + getNodeSize(node) + 15}
-                  textAnchor="middle"
-                  className="font-black text-xs uppercase fill-black font-mono"
-                >
-                  {node.label}
-                </text>
-              </g>
-            ))}
-          </svg>
-        </div>
-      </div>
+            {nodes.map((node, index) => {
+              // Simple layout for visualization
+              const x = (index + 0.5) * (600 / nodes.length);
+              const y = 200; // Place nodes in the middle for simplicity
 
-      {/* Legend */}
-      <div className="bg-white border-4 border-black p-4 shadow-[4px_4px_0px_#000000]">
-        <h3 className="font-black uppercase text-black mb-3 font-mono">LEGEND</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="flex items-center">
-            <div className="w-6 h-6 bg-[#3776ab] border-2 border-black mr-2"></div>
-            <span className="font-bold text-black text-sm uppercase">PYTHON</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-6 h-6 bg-[#f7df1e] border-2 border-black mr-2"></div>
-            <span className="font-bold text-black text-sm uppercase">JAVASCRIPT</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-6 h-6 bg-[#3178c6] border-2 border-black mr-2"></div>
-            <span className="font-bold text-black text-sm uppercase">TYPESCRIPT</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-6 h-6 bg-[#00ff88] border-2 border-black mr-2"></div>
-            <span className="font-bold text-black text-sm uppercase">FUNCTIONS</span>
-          </div>
+              return (
+                <g key={node.id} transform={`translate(${x},${y})`}>
+                  <circle
+                    r={getNodeSize(node) / 2}
+                    fill={getNodeColor(node)}
+                    stroke="#000000"
+                    strokeWidth="2"
+                  />
+                  <text
+                    x="0"
+                    y="5"
+                    textAnchor="middle"
+                    fill="white"
+                    fontSize="10"
+                    fontWeight="bold"
+                    className="uppercase font-mono"
+                  >
+                    {node.label.length > 10 ? node.label.substring(0, 7) + '...' : node.label}
+                  </text>
+                </g>
+              );
+            })}
+            {/* Define arrowhead marker for lines */}
+            <defs>
+              <marker
+                id="arrowhead"
+                markerWidth="10"
+                markerHeight="7"
+                refX="8"
+                refY="3.5"
+                orient="auto"
+              >
+                <polygon points="0 0, 10 3.5, 0 7" fill="#000000" />
+              </marker>
+            </defs>
+          </svg>
         </div>
       </div>
     </div>

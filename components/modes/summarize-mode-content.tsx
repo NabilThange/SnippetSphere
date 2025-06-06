@@ -1,291 +1,91 @@
 "use client"
 
-import { useState } from "react"
-import { FileText, RefreshCw, ChevronDown } from "lucide-react"
+import { useState, useEffect } from "react"
+import { FileText, RefreshCw, ChevronDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import CodeSnippetDisplay from "@/components/code-snippet-display"
+import { apiClient } from "@/lib/api-client"
+import { useSession } from "@/lib/session-context"
 
-interface SummarizeModeContentProps {
-  sessionId: string
-  isSearching: boolean
-}
-
-interface FileItem {
-  path: string
-  name: string
-  language: string
-  functions: string[]
-  codeSnippet: string
-  mainFunction?: string
-}
-
-export default function SummarizeModeContent({ sessionId, isSearching }: SummarizeModeContentProps) {
+export default function SummarizeModeContent({ sessionId }: { sessionId: string }) {
+  const { uploadedFilePaths } = useSession()
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [summary, setSummary] = useState<string>("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [showFileList, setShowFileList] = useState(false)
+  const [summarizeError, setSummarizeError] = useState<string | null>(null)
 
-  // Mock file data with code snippets
-  const files: FileItem[] = [
-    {
-      path: "utils.py",
-      name: "utils.py",
-      language: "Python",
-      functions: ["parse_json", "validate_data", "format_output"],
-      mainFunction: "parse_json",
-      codeSnippet: `def parse_json(json_str):
-    """Parse JSON string and handle errors gracefully."""
-    try:
-        return json.loads(json_str)
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON: {e}")
-        return None
+  useEffect(() => {
+    // Reset selected file and summary if session changes or files change
+    setSelectedFile(null)
+    setSummary("")
+    setSummarizeError(null)
+    setIsGenerating(false)
+  }, [sessionId, uploadedFilePaths])
 
-def validate_data(data, schema):
-    """Validate data against provided schema."""
-    if not isinstance(data, dict):
-        return False
-    
-    for key, expected_type in schema.items():
-        if key not in data or not isinstance(data[key], expected_type):
-            return False
-    return True
-
-def format_output(data, format_type="json"):
-    """Format output data for different formats."""
-    if format_type == "json":
-        return json.dumps(data, indent=2)
-    elif format_type == "csv":
-        return convert_to_csv(data)
-    else:
-        return str(data)`,
-    },
-    {
-      path: "api/handlers.js",
-      name: "handlers.js",
-      language: "JavaScript",
-      functions: ["processData", "handleRequest", "validateInput"],
-      mainFunction: "processData",
-      codeSnippet: `function processData(data) {
-  if (!data || typeof data !== 'object') {
-    throw new Error('Invalid data format');
+  const handleFileSelect = async (filePath: string) => {
+    setSelectedFile(filePath)
+    setShowFileList(false) // Close dropdown
+    await generateSummary(filePath)
   }
-  
-  const result = {
-    id: data.id,
-    name: data.name,
-    timestamp: new Date().toISOString()
-  };
-  
-  return result;
-}
 
-function handleRequest(req, res) {
-  try {
-    const processedData = processData(req.body);
-    res.status(200).json({
-      success: true,
-      data: processedData
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-}
-
-function validateInput(input) {
-  const required = ['id', 'name'];
-  return required.every(field => input.hasOwnProperty(field));
-}`,
-    },
-    {
-      path: "models/user.py",
-      name: "user.py",
-      language: "Python",
-      functions: ["User.to_json", "User.validate", "User.create"],
-      mainFunction: "User.to_json",
-      codeSnippet: `class User(models.Model):
-    username = models.CharField(max_length=150, unique=True)
-    email = models.EmailField(unique=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
-
-    def to_json(self):
-        """Convert user object to JSON representation."""
-        return {
-            'id': self.id,
-            'username': self.username,
-            'email': self.email,
-            'created_at': self.created_at.isoformat()
-        }
-
-    def validate(self):
-        """Validate user data."""
-        if not self.username or len(self.username) < 3:
-            raise ValidationError("Username must be at least 3 characters")
-        if not self.email or '@' not in self.email:
-            raise ValidationError("Valid email required")
-
-    @classmethod
-    def create(cls, username, email):
-        """Create new user instance."""
-        user = cls(username=username, email=email)
-        user.validate()
-        user.save()
-        return user`,
-    },
-    {
-      path: "components/auth.tsx",
-      name: "auth.tsx",
-      language: "TypeScript",
-      functions: ["useAuth", "AuthProvider", "LoginForm"],
-      mainFunction: "useAuth",
-      codeSnippet: `import React, { createContext, useContext, useState, useEffect } from 'react';
-
-interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  isLoading: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-}
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      const response = await api.post('/auth/login', { email, password });
-      setUser(response.data.user);
-      localStorage.setItem('token', response.data.token);
-    } catch (error) {
-      throw new Error('Login failed');
-    } finally {
-      setIsLoading(false);
+  const handleRegenerateSummary = async () => {
+    if (selectedFile) {
+      await generateSummary(selectedFile)
     }
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('token');
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}`,
-    },
-  ]
+  }
 
   const generateSummary = async (filePath: string) => {
     setIsGenerating(true)
     setSummary("")
+    setSummarizeError(null)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    const mockSummaries: Record<string, string> = {
-      "utils.py": `UTILS.PY SUMMARY:
-
-This utility module provides essential data processing functions for the application. The main functions include:
-
-• PARSE_JSON: Safely parses JSON strings with comprehensive error handling and logging
-• VALIDATE_DATA: Performs data validation using predefined schemas and rules
-• FORMAT_OUTPUT: Standardizes output formatting across the application
-
-The module follows Python best practices with proper exception handling, type hints, and comprehensive documentation. It serves as a core dependency for data processing throughout the codebase.
-
-DEPENDENCIES: json, logging, typing
-LINES OF CODE: 156
-COMPLEXITY: Medium`,
-
-      "api/handlers.js": `HANDLERS.JS SUMMARY:
-
-This API handler module manages HTTP request processing and routing for the web application. Key components include:
-
-• PROCESSDATA: Main data processing endpoint with validation and transformation
-• HANDLEREQUEST: Generic request handler with middleware support
-• VALIDATEINPUT: Input validation and sanitization for all endpoints
-
-The module implements RESTful API patterns with proper error handling, request validation, and response formatting. It uses Express.js middleware patterns for authentication and logging.
-
-DEPENDENCIES: express, joi, lodash
-LINES OF CODE: 234
-COMPLEXITY: High`,
-
-      "models/user.py": `USER.PY SUMMARY:
-
-This model defines the User entity and related database operations. Core functionality includes:
-
-• USER.TO_JSON: Serializes user objects to JSON format for API responses
-• USER.VALIDATE: Validates user data against business rules and constraints
-• USER.CREATE: Creates new user instances with proper validation and defaults
-
-The model follows Django ORM patterns with custom managers, validation methods, and serialization. It includes proper field definitions, relationships, and business logic encapsulation.
-
-DEPENDENCIES: django.db, django.contrib.auth
-LINES OF CODE: 89
-COMPLEXITY: Medium`,
-
-      "components/auth.tsx": `AUTH.TSX SUMMARY:
-
-This React authentication component provides user authentication functionality. Main exports include:
-
-• USEAUTH: Custom hook for authentication state management
-• AUTHPROVIDER: Context provider for authentication across the app
-• LOGINFORM: Login form component with validation and error handling
-
-The component uses React hooks, context API, and TypeScript for type safety. It implements JWT token management, automatic token refresh, and protected route handling.
-
-DEPENDENCIES: react, react-router, axios
-LINES OF CODE: 178
-COMPLEXITY: Medium`,
-    }
-
-    setSummary(mockSummaries[filePath] || "NO SUMMARY AVAILABLE FOR THIS FILE.")
-    setIsGenerating(false)
-  }
-
-  const handleFileSelect = (filePath: string) => {
-    setSelectedFile(filePath)
-    setShowFileList(false)
-    generateSummary(filePath)
-  }
-
-  const handleRegenerateSummary = () => {
-    if (selectedFile) {
-      generateSummary(selectedFile)
+    try {
+      const response = await apiClient.summarizeText(sessionId, filePath)
+      if (response.success) {
+        setSummary(response.summary)
+      } else {
+        setSummarizeError(response.message || "Failed to generate summary.")
+      }
+    } catch (error: any) {
+      console.error("Error generating summary:", error)
+      setSummarizeError(error.message || "An unexpected error occurred during summarization.")
+    } finally {
+      setIsGenerating(false)
     }
   }
 
-  const getSelectedFileData = () => {
-    return files.find((file) => file.path === selectedFile)
+  if (!sessionId) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center py-12 border-4 border-black bg-white shadow-[6px_6px_0px_#000000] max-w-2xl">
+          <p className="text-black font-black uppercase text-xl font-mono px-8">
+            PLEASE UPLOAD A CODEBASE TO GENERATE SUMMARIES.
+          </p>
+        </div>
+      </div>
+    )
   }
 
-  const selectedFileData = getSelectedFileData()
+  if (uploadedFilePaths.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center py-12 border-4 border-black bg-white shadow-[6px_6px_0px_#000000] max-w-2xl">
+          <p className="text-black font-black uppercase text-xl font-mono px-8">
+            NO UPLOADED FILES FOUND FOR THIS SESSION. PLEASE UPLOAD AND INDEX CODE FIRST.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-black uppercase text-black font-mono tracking-tight">FILE SUMMARIES</h2>
         <div className="bg-[#00ff88] border-2 border-black px-3 py-1 text-black font-black text-sm uppercase">
-          {files.length} FILES
+          {uploadedFilePaths.length} FILES
         </div>
       </div>
 
@@ -297,26 +97,23 @@ COMPLEXITY: Medium`,
         >
           <div className="flex items-center">
             <FileText className="w-6 h-6 mr-3" />
-            {selectedFile ? `SELECTED: ${selectedFile}` : "SELECT A FILE TO SUMMARIZE"}
+            {selectedFile ? `SELECTED: ${selectedFile.split('/').pop()}` : "SELECT A FILE TO SUMMARIZE"}
           </div>
           <ChevronDown className={`w-6 h-6 transition-transform ${showFileList ? "rotate-180" : ""}`} />
         </Button>
 
         {showFileList && (
           <div className="absolute top-full left-0 right-0 z-10 mt-2 bg-white border-4 border-black shadow-[6px_6px_0px_#000000] max-h-64 overflow-y-auto">
-            {files.map((file) => (
+            {uploadedFilePaths.map((filePath, index) => (
               <button
-                key={file.path}
-                onClick={() => handleFileSelect(file.path)}
+                key={index}
+                onClick={() => handleFileSelect(filePath)}
                 className="w-full text-left p-4 border-b-2 border-black hover:bg-[#e0e0e0] transition-colors font-bold"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-black uppercase text-black">{file.name}</div>
-                    <div className="text-sm text-black opacity-70">{file.language}</div>
-                  </div>
-                  <div className="bg-black text-white px-2 py-1 text-xs font-black uppercase">
-                    {file.functions.length} FUNCTIONS
+                    <div className="font-black uppercase text-black">{filePath.split('/').pop()}</div>
+                    <div className="text-sm text-black opacity-70">{filePath}</div>
                   </div>
                 </div>
               </button>
@@ -325,13 +122,12 @@ COMPLEXITY: Medium`,
         )}
       </div>
 
-      {/* Code Snippet Display */}
-      {selectedFileData && (
+      {/* Code Snippet Display - Simplified to only show filename */}
+      {selectedFile && (
         <CodeSnippetDisplay
-          fileName={selectedFileData.name}
-          code={selectedFileData.codeSnippet}
-          language={selectedFileData.language}
-          functionName={selectedFileData.mainFunction}
+          fileName={selectedFile.split('/').pop() || selectedFile}
+          code="// Code snippet not available for summarization directly via this route\n// Select another mode or feature to view the full code."
+          language="plaintext" // Or infer based on extension if possible
         />
       )}
 
@@ -340,7 +136,7 @@ COMPLEXITY: Medium`,
         <div className="bg-white border-4 border-black shadow-[6px_6px_0px_#000000]">
           <div className="border-b-4 border-black p-4 flex items-center justify-between">
             <h3 className="font-black uppercase text-black text-xl font-mono">
-              SUMMARY OF {selectedFile.toUpperCase()}
+              SUMMARY OF {selectedFile.split('/').pop()?.toUpperCase()}
             </h3>
             <Button
               onClick={handleRegenerateSummary}
@@ -371,10 +167,19 @@ COMPLEXITY: Medium`,
                   GENERATING SUMMARY...
                 </p>
               </div>
+            ) : summarizeError ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 border-4 border-black bg-white mx-auto mb-4 flex items-center justify-center">
+                  <X className="w-6 h-6 text-[#ff3f3f]" />
+                </div>
+                <p className="text-[#ff3f3f] font-black uppercase text-lg font-mono">
+                  ERROR: {summarizeError.toUpperCase()}
+                </p>
+              </div>
             ) : (
               <ScrollArea className="h-[300px]">
                 <pre className="text-black font-bold whitespace-pre-wrap leading-relaxed font-mono text-sm">
-                  {summary}
+                  {summary || "NO SUMMARY AVAILABLE. SELECT A FILE AND CLICK REGENERATE."}
                 </pre>
               </ScrollArea>
             )}

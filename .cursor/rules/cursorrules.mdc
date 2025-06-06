@@ -1,0 +1,388 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+📜 SnippetSphere — Detailed Instructions for Cursor
+🚀 Project Overview
+Build the SnippetSphere application — an AI-powered code exploration platform with the following key features:
+✅ Users upload a .zip file containing a codebase.
+✅ The app analyzes the code, splits it into chunks, generates embeddings, and stores them in a vector database (Zilliz).
+✅ Users can:
+
+Build & Understand: Learn step-by-step how to recreate the uploaded codebase from scratch, using a dependency-based logical build order.
+
+Search: Semantic search across their uploaded codebase.
+
+Summarize: Summarize files or functions in simple language.
+
+Chat: Ask natural language questions about their codebase.
+
+Visualize: View dependencies and call graphs.
+
+🎨 4️⃣ UI Design System
+Use the Neubrutalism Design System (as described in the provided NEUBRUTALISM UI RULESET.txt):
+
+✅ Bold, black outlines.
+✅ Flat, high-contrast colors (neon green, pink, yellow, etc.).
+✅ Big, blocky buttons with thick borders.
+✅ Monospace font for code snippets.
+✅ Consistent padding and spacing across all UI components.
+
+🚀 Overview
+SnippetSphere is an AI-powered platform designed to help users understand, explore, and learn from any uploaded codebase. It’s especially helpful for developers who want to:
+
+Understand how a project was built from scratch (Build & Understand mode).
+
+Search their codebase semantically.
+
+Chat with an AI agent about their code.
+
+Summarize complex files in simple language.
+
+Visualize code dependencies (like call graphs).
+
+SnippetSphere is built using a Next.js (frontend) + FastAPI (backend) architecture, with integrations to Novita.ai (for embeddings and summaries) and Zilliz (Milvus) (as a vector database).
+
+🎨 Frontend Overview
+The frontend uses:
+✅ Next.js with TypeScript for building the web app.
+✅ Tailwind CSS with a Neubrutalism-inspired design (bold outlines, bright colors, playful shapes).
+✅ Mode Selector: Lets users switch between:
+
+Build & Understand
+
+Search
+
+Summarize
+
+Chat
+
+Visualize
+
+Key UI Components
+Upload Section: Drag-and-drop .zip file upload.
+
+Mode Selector: Buttons to switch between modes.
+
+Session Controls: Manage uploaded code sessions.
+
+Results Display: Shows search results, summaries, chat responses, and build steps.
+
+⚙️ Backend Overview
+The backend is built with FastAPI (Python) and consists of several endpoints. Here’s how each feature works:
+
+🛠️ Feature-by-Feature Breakdown
+🟢 1. Build & Understand Mode
+Goal: Guide the user through how the uploaded codebase might have been built, step by step.
+
+How It Works:
+
+Code Parsing:
+
+After uploading a .zip, SnippetSphere extracts the project.
+
+It analyzes files to detect dependencies using:
+
+AST parsing for Python (standard ast module).
+
+(Optional) Tree-Sitter for JS/TS.
+
+Dependency Graph:
+
+Builds a graph showing which files/functions depend on others.
+
+Determines the logical order in which a developer might have built the project.
+
+Step Generation:
+
+For each step:
+
+Highlights a file/function to build.
+
+Explains why that step comes first (e.g. “Define the database model before API endpoints”).
+
+Includes the code snippet, explanation, and related files.
+
+Summaries:
+
+Uses Novita.ai to generate a beginner-friendly explanation for each step.
+
+🔍 2. Search Mode
+Goal: Let users ask questions and find relevant code snippets in their uploaded project.
+
+How It Works:
+
+Embeddings:
+
+Each code chunk (function/class/snippet) is embedded using Novita.ai.
+
+Vector Search:
+
+The user’s query is embedded too.
+
+A similarity search is performed using Zilliz (Milvus) to find the top matches.
+
+Result Display:
+
+Shows file name, function name, snippet, and a summary explaining what the snippet does.
+
+✍️ 3. Summarize Mode
+Goal: Let users select a file or function and get a plain-language summary.
+
+How It Works:
+
+Accepts a file or snippet.
+
+Calls Novita.ai’s summarization API.
+
+Returns a short, human-readable explanation.
+
+💬 4. Chat Mode
+Goal: Provide a conversational interface for asking questions about the codebase.
+
+How It Works:
+
+Accepts natural language questions from the user.
+
+Uses Novita.ai to generate answers, referencing specific files or functions.
+
+Replies in a conversational tone, like a chat assistant.
+
+📊 5. Visualize Mode
+Goal: Let users explore the codebase’s structure visually.
+
+How It Works:
+
+Generates a function call graph or module dependency diagram using the earlier dependency graph.
+
+Returns JSON data to the frontend, which renders the graph (e.g. D3.js).
+
+Lets users hover on nodes to see file/function details.
+
+📦 How SnippetSphere Uses Uploaded Code
+Accepts .zip file from the frontend.
+
+Extracts files to a temporary directory (per session).
+
+Parses relevant files (e.g. .py, .js, .ts).
+
+Builds:
+
+Code chunks (functions, classes, blocks).
+
+Embeddings (via Novita.ai).
+
+Dependency graph (via parsing).
+
+Stores:
+
+Embeddings in Zilliz (Milvus) vector database.
+
+Session metadata in the backend.
+
+🌈 Design Principles
+✅ Neubrutalism Style:
+
+Thick black outlines.
+
+Bold, flat colors.
+
+Playful, modern aesthetic.
+
+✅ Session-Based:
+
+Each upload is stored as a session.
+
+Data is isolated to each user.
+
+✅ Privacy-First:
+
+Uploaded code is stored temporarily.
+
+Sessions can be deleted by the user.
+
+🔥 Why SnippetSphere Matters
+SnippetSphere is not just another code search tool. It’s an interactive learning companion that:
+
+Guides users through building real-world projects step by step.
+
+Makes learning code intuitive and accessible.
+
+Bridges the gap between AI and human learning.
+
+📜 SnippetSphere — Detailed Instructions for Trae IDE
+🚀 Project Overview
+Build the SnippetSphere application — an AI-powered code exploration platform with the following key features:
+✅ Users upload a .zip file containing a codebase.
+✅ The app analyzes the code, splits it into chunks, generates embeddings, and stores them in a vector database (Zilliz).
+✅ Users can:
+
+Build & Understand: Learn step-by-step how to recreate the uploaded codebase from scratch, using a dependency-based logical build order.
+Search: Semantic search across their uploaded codebase.
+
+Summarize: Summarize files or functions in simple language.
+
+Chat: Ask natural language questions about their codebase.
+
+Visualize: View dependencies and call graphs.
+
+🎨 4️⃣ UI Design System
+Use the Neubrutalism Design System (as described in the provided NEUBRUTALISM UI RULESET.txt):
+✅ Bold, black outlines.
+✅ Flat, high-contrast colors (neon green, pink, yellow, etc.).
+✅ Big, blocky buttons with thick borders.
+✅ Monospace font for code snippets.
+✅ Consistent padding and spacing across all UI components.
+
+
+🚀 Overview
+SnippetSphere is an AI-powered platform designed to help users understand, explore, and learn from any uploaded codebase. It’s especially helpful for developers who want to:
+
+Understand how a project was built from scratch (Build & Understand mode).
+
+Search their codebase semantically.
+
+Chat with an AI agent about their code.
+
+Summarize complex files in simple language.
+
+Visualize code dependencies (like call graphs).
+
+SnippetSphere is built using a Next.js (frontend) + FastAPI (backend) architecture, with integrations to Novita.ai (for embeddings and summaries) and Zilliz (Milvus) (as a vector database).
+
+🎨 Frontend Overview
+The frontend uses:
+✅ Next.js with TypeScript for building the web app.
+✅ Tailwind CSS with a Neubrutalism-inspired design (bold outlines, bright colors, playful shapes).
+✅ Mode Selector: Lets users switch between:
+
+Build & Understand
+
+Search
+
+Summarize
+
+Chat
+
+Visualize
+
+Key UI Components
+Upload Section: Drag-and-drop .zip file upload.
+
+Mode Selector: Buttons to switch between modes.
+
+Session Controls: Manage uploaded code sessions.
+
+Results Display: Shows search results, summaries, chat responses, and build steps.
+
+⚙️ Backend Overview
+The backend is built with FastAPI (Python) and consists of several endpoints. Here’s how each feature works:
+
+🛠️ Feature-by-Feature Breakdown
+🟢 1. Build & Understand Mode
+Goal: Guide the user through how the uploaded codebase might have been built, step by step.
+
+How It Works:
+
+Code Parsing:
+
+After uploading a .zip, SnippetSphere extracts the project.
+
+It analyzes files to detect dependencies using:
+
+AST parsing for Python (standard ast module).
+
+(Optional) Tree-Sitter for JS/TS.
+
+Dependency Graph:
+
+Builds a graph showing which files/functions depend on others.
+
+Determines the logical order in which a developer might have built the project.
+
+Step Generation:
+
+For each step:
+
+Highlights a file/function to build.
+
+Explains why that step comes first (e.g. “Define the database model before API endpoints”).
+
+Includes the code snippet, explanation, and related files.
+
+Summaries:
+
+Uses Novita.ai to generate a beginner-friendly explanation for each step.
+
+🔍 2. Search Mode
+Goal: Let users ask questions and find relevant code snippets in their uploaded project.
+
+How It Works:
+
+Embeddings:
+
+Each code chunk (function/class/snippet) is embedded using Novita.ai.
+
+Vector Search:
+
+The user’s query is embedded too.
+
+A similarity search is performed using Zilliz (Milvus) to find the top matches.
+
+Result Display:
+
+Shows file name, function name, snippet, and a summary explaining what the snippet does.
+
+✍️ 3. Summarize Mode
+Goal: Let users select a file or function and get a plain-language summary.
+
+How It Works:
+
+Accepts a file or snippet.
+
+Calls Novita.ai’s summarization API.
+
+Returns a short, human-readable explanation.
+
+💬 4. Chat Mode
+Goal: Provide a conversational interface for asking questions about the codebase.
+
+How It Works:
+Accepts natural language questions from the user.
+
+Uses Novita.ai to generate answers, referencing specific files or functions.
+
+Replies in a conversational tone, like a chat assistant.
+
+📊 5. Visualize Mode
+Goal: Let users explore the codebase’s structure visually.
+
+How It Works:
+
+Generates a function call graph or module dependency diagram using the earlier dependency graph.
+
+Returns JSON data to the frontend, which renders the graph (e.g. D3.js).
+
+Lets users hover on nodes to see file/function details.
+
+📦 How SnippetSphere Uses Uploaded Code
+Accepts .zip file from the frontend.
+
+Extracts files to a temporary directory (per session).
+
+Parses relevant files (e.g. .py, .js, .ts).
+
+Builds:
+
+Code chunks (functions, classes, blocks).
+
+Embeddings (via Novita.ai).
+
+Dependency graph (via parsing).
+
+Stores:
+
+Embeddings in Zilliz (Milvus) vector database.
+
+Session metadata in the backend.

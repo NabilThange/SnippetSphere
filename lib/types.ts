@@ -7,6 +7,7 @@ export interface SearchResult {
   language?: string
   tags?: string[]
   mode?: SearchMode
+  similarity?: number
 }
 
 export interface UploadResponse {
