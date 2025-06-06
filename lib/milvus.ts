@@ -19,9 +19,23 @@ const getMilvusClient = async () => {
   }
 
   if (!milvusClient) {
-    milvusClient = new MilvusClient({
-      address: process.env.MILVUS_HOST || 'localhost:19530',
-    });
+    const address = process.env.MILVUS_HOST || 'localhost:19530';
+    const config: any = {
+      address: address,
+    };
+
+    // Automatically enable SSL for HTTPS addresses (Zilliz Cloud serverless)
+    if (address.startsWith('https://')) {
+      config.address = address.replace('https://', ''); // Remove https:// for the address field
+      config.ssl = true;
+    }
+
+    // Add authentication if using Zilliz Cloud
+    if (process.env.MILVUS_TOKEN) {
+      config.token = process.env.MILVUS_TOKEN;
+    }
+
+    milvusClient = new MilvusClient(config);
   }
 
   return milvusClient;

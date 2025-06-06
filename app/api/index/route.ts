@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const codeChunksToEmbed: Array<{ content: string; filePath: string; sessionId: string }> = [];
 
     for (const filePath of filePaths) {
-      const fullPath = path.join(os.tmpdir(), filePath); // Assuming files are in temp directory
+      const fullPath = filePath; // Corrected: filePath is already the full temp path
       let fileContent;
       try {
         fileContent = fs.readFileSync(fullPath, 'utf-8');
@@ -41,11 +41,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const zillizClient = await getMilvusClient();
+    const milvusClient = await getMilvusClient();
+    
+    // Test the connection
+    await milvusClient.checkHealth();
+    
     // Create collection if it doesn't exist. Assuming embedding dimension 1536 for 'text-embedding-ada-002'.
     // You might need to adjust this dimension based on the actual model used.
     const EMBEDDING_DIMENSION = 1536; 
-    await zillizClient.createCollection(COLLECTION_NAME, EMBEDDING_DIMENSION);
+    await milvusClient.createCollection(COLLECTION_NAME, EMBEDDING_DIMENSION);
 
     const embeddingsToInsert: Array<{ content: string; filePath: string; sessionId: string; embedding: number[] }> = [];
     let processedChunksCount = 0;
@@ -67,17 +71,28 @@ export async function POST(req: NextRequest) {
     }
 
     if (embeddingsToInsert.length > 0) {
-      await zillizClient.insertVectors(embeddingsToInsert);
+      await milvusClient.insertVectors(embeddingsToInsert);
     }
 
     return NextResponse.json({ message: 'Code indexed and embeddings generated successfully in Zilliz', chunksProcessed: processedChunksCount }, { status: 200 });
   } catch (error: any) {
-    console.error('API error:', error);
+    console.error('Milvus connection error:', error);
+    
     if (error.message.includes('not available during build')) {
-      return NextResponse.json({
-        error: 'Vector database not available during build.'
+      return NextResponse.json({ 
+        error: 'Vector database not available during build' 
       }, { status: 503 });
     }
-    return NextResponse.json({ error: 'Failed to process files for indexing' }, { status: 500 });
+    
+    // More specific error handling
+    if (error.message.includes('connection')) {
+      return NextResponse.json({ 
+        error: 'Cannot connect to vector database. Please ensure Milvus is running.' 
+      }, { status: 503 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Database error: ' + error.message 
+    }, { status: 500 });
   }
 } 
