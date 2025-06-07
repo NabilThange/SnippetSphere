@@ -79,30 +79,42 @@ export default function UploadSection() {
     setUploadError(null)
     setUploadProgress(0)
 
-    const formData = new FormData()
-    formData.append("file", file)
-
     try {
-      // Step 1: Upload the zip file
-      const uploadResponse = await apiClient.uploadFiles(formData)
-      const { files: extractedFilePaths } = uploadResponse
+      // Step 1: Read file as base64
+      const fileBuffer = await file.arrayBuffer()
+      const base64File = Buffer.from(fileBuffer).toString('base64')
 
-      console.log("Upload successful. Extracted files:", extractedFilePaths)
-      setUploadedFilePaths(extractedFilePaths)
+      // Generate a proper UUID for the session
+      const currentSessionId = crypto.randomUUID()
 
-      setUploadProgress(50)
+      // Step 2: Index the uploaded code directly
+      const indexResponse = await fetch('/api/index', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: currentSessionId,
+          fileContentBase64: base64File
+        })
+      })
 
-      // Step 2: Index the uploaded code
-      const currentSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
-      await apiClient.indexCode(currentSessionId, extractedFilePaths)
+      if (!indexResponse.ok) {
+        const errorData = await indexResponse.json()
+        throw new Error(errorData.error || 'Failed to index codebase')
+      }
 
-      console.log("Code indexing complete.")
+      const indexResult = await indexResponse.json()
+      console.log("Code indexing complete:", indexResult)
+
+      // Update session state
       setSessionId(currentSessionId)
+      setUploadedFilePaths(indexResult.fileCount ? [`${indexResult.fileCount} files processed`] : [])
       setUploadProgress(100)
 
     } catch (error: any) {
-      console.error("Upload/Indexing failed:", error)
-      setUploadError(error.message || "An unexpected error occurred during upload or indexing.")
+      console.error("Indexing failed:", error)
+      setUploadError(error.message || "An unexpected error occurred during indexing.")
     } finally {
       setIsUploading(false)
     }

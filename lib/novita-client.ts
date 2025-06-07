@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { NovitaClient } from "novita-sdk";
 
 interface EmbeddingResponse {
   data: {
@@ -101,6 +102,28 @@ class NovitaClient {
       }
     }
   }
+}
+
+// We use the same pattern here: one client, reused every time.
+let novitaClient: NovitaClient | null = null;
+
+export function getNovitaClient(): NovitaClient {
+  if (novitaClient) {
+    return novitaClient;
+  }
+
+  const novitaApiKey = process.env.NOVITA_API_KEY;
+
+  if (!novitaApiKey) {
+    throw new Error("Novita AI environment variable NOVITA_API_KEY is not set.");
+  }
+
+  console.log("Creating new Novita AI client instance...");
+  
+  novitaClient = new NovitaClient(novitaApiKey);
+  
+  console.log("Novita AI client created successfully.");
+  return novitaClient;
 }
 
 export default NovitaClient; 

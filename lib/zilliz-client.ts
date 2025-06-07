@@ -8,6 +8,39 @@ interface CodeChunk {
   sessionId: string;
 }
 
+// This is a professional pattern to ensure we only have ONE connection to the database.
+// We store the client in this global variable.
+let zillizClient: MilvusClient | null = null;
+
+// This is the "assistant" function our main code calls.
+export function getZillizClient(): MilvusClient {
+  // If we already created a client, reuse it. This is efficient.
+  if (zillizClient) {
+    return zillizClient;
+  }
+
+  // If not, create a new one.
+  // It reads the connection details from special "environment variables".
+  const zillizUrl = process.env.ZILLIZ_CLOUD_URI;
+  const zillizToken = process.env.ZILLIZ_CLOUD_API_KEY;
+
+  if (!zillizUrl || !zillizToken) {
+    // If we are missing the credentials, we must stop and warn the developer.
+    throw new Error("Zilliz Cloud environment variables ZILLIZ_CLOUD_URI and ZILLIZ_CLOUD_API_KEY are not set.");
+  }
+
+  console.log("Creating new Zilliz client instance...");
+  
+  // This is where the actual connection is made.
+  zillizClient = new MilvusClient({
+    address: zillizUrl,
+    token: zillizToken,
+  });
+
+  console.log("Zilliz client created successfully.");
+  return zillizClient;
+}
+
 class ZillizClient {
   private client: MilvusClient;
   private defaultCollectionName: string = 'code_embeddings';

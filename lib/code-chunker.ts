@@ -1,5 +1,11 @@
 import { EnhancedChunk } from "./types";
 import { getAIInsights } from "./novita-ai";
+import { v4 as uuidv4 } from 'uuid';
+import * as parser from '@babel/parser';
+import * as _traverse from '@babel/traverse';
+import * as t from '@babel/types';
+
+const traverse = _traverse.default;
 
 type ChunkType = 'component' | 'api' | 'config' | 'utility' | 'style' | 'test';
 
@@ -221,4 +227,217 @@ Provide a concise explanation, its main purpose, and its complexity (simple, mod
   }));
 
   return enrichedChunks;
+}
+
+interface Chunk {
+  id: string;
+  content: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  sessionId: string;
+}
+
+const CHUNK_SIZE_LINES = 20; // Chunk by 20 lines of code
+const CHUNK_OVERLAP_LINES = 5; // Overlap by 5 lines
+
+export function chunkCode({ content, filePath, sessionId }: { content: string; filePath: string; sessionId: string }): Chunk[] {
+  const lines = content.split('\n');
+  const chunks: Chunk[] = [];
+  
+  if (lines.length <= CHUNK_SIZE_LINES) {
+    // If the file is small, treat it as a single chunk
+    if (content.trim()) {
+        chunks.push({
+            id: uuidv4(),
+            content: content,
+            filePath,
+            startLine: 1,
+            endLine: lines.length,
+            sessionId,
+        });
+    }
+    return chunks;
+  }
+
+  for (let i = 0; i < lines.length; i += CHUNK_SIZE_LINES - CHUNK_OVERLAP_LINES) {
+    const startLine = i;
+    const endLine = Math.min(i + CHUNK_SIZE_LINES, lines.length);
+    const chunkContent = lines.slice(startLine, endLine).join('\n');
+    
+    if (chunkContent.trim()) {
+      chunks.push({
+        id: uuidv4(),
+        content: chunkContent,
+        filePath,
+        startLine: startLine + 1, // 1-based indexing for display
+        endLine,
+        sessionId,
+      });
+    }
+  }
+  return chunks;
+}
+
+export interface CodeChunk {
+  id: string;
+  content: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  chunkType: 'function' | 'class' | 'import' | 'export' | 'comment' | 'general';
+  language: string;
+  sessionId: string;
+  complexity?: number;
+}
+
+const CHUNK_TARGET_TOKENS = 250;
+const CHUNK_OVERLAP_TOKENS = 50;
+
+// Language-specific file extensions
+const LANGUAGE_EXTENSIONS: { [key: string]: string[] } = {
+  javascript: ['.js', '.jsx'],
+  typescript: ['.ts', '.tsx'],
+  python: ['.py'],
+  java: ['.java'],
+  rust: ['.rs'],
+  go: ['.go'],
+  cpp: ['.cpp', '.hpp', '.cc', '.cxx']
+};
+
+function detectLanguage(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase() || '';
+  for (const [lang, extensions] of Object.entries(LANGUAGE_EXTENSIONS)) {
+    if (extensions.includes(`.${ext}`)) return lang;
+  }
+  return 'unknown';
+}
+
+function estimateTokenCount(text: string): number {
+  // Simple token estimation: roughly 4 characters per token
+  return Math.ceil(text.length / 4);
+}
+
+function parseJavaScriptFile(content: string): CodeChunk[] {
+  const chunks: CodeChunk[] = [];
+  const ast = parser.parse(content, {
+    sourceType: 'module',
+    plugins: ['typescript', 'jsx']
+  });
+
+  traverse(ast, {
+    enter(path: any) {
+      let chunk: CodeChunk | null = null;
+
+      // Identify different code structures
+      if (t.isFunctionDeclaration(path.node) || t.isArrowFunctionExpression(path.node)) {
+        const start = path.node.loc?.start.line || 0;
+        const end = path.node.loc?.end.line || 0;
+        const functionContent = content.split('\n').slice(start - 1, end).join('\n');
+
+        chunk = {
+          id: uuidv4(),
+          content: functionContent,
+          filePath: '', // Will be set later
+          startLine: start,
+          endLine: end,
+          chunkType: 'function',
+          language: 'javascript',
+          sessionId: '', // Will be set later
+          complexity: estimateTokenCount(functionContent)
+        };
+      }
+
+      if (t.isClassDeclaration(path.node)) {
+        const start = path.node.loc?.start.line || 0;
+        const end = path.node.loc?.end.line || 0;
+        const classContent = content.split('\n').slice(start - 1, end).join('\n');
+
+        chunk = {
+          id: uuidv4(),
+          content: classContent,
+          filePath: '', // Will be set later
+          startLine: start,
+          endLine: end,
+          chunkType: 'class',
+          language: 'javascript',
+          sessionId: '', // Will be set later
+          complexity: estimateTokenCount(classContent)
+        };
+      }
+
+      if (chunk) chunks.push(chunk);
+    }
+  });
+
+  // If no specific structures found, do basic chunking
+  if (chunks.length === 0) {
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i += CHUNK_TARGET_TOKENS) {
+      const chunkLines = lines.slice(i, i + CHUNK_TARGET_TOKENS);
+      chunks.push({
+        id: uuidv4(),
+        content: chunkLines.join('\n'),
+        filePath: '', // Will be set later
+        startLine: i + 1,
+        endLine: i + chunkLines.length,
+        chunkType: 'general',
+        language: 'javascript',
+        sessionId: '', // Will be set later
+        complexity: estimateTokenCount(chunkLines.join('\n'))
+      });
+    }
+  }
+
+  return chunks;
+}
+
+export function chunkCodeFile({ 
+  content, 
+  filePath, 
+  sessionId 
+}: { 
+  content: string; 
+  filePath: string; 
+  sessionId: string 
+}): CodeChunk[] {
+  const language = detectLanguage(filePath);
+  
+  let chunks: CodeChunk[];
+  
+  switch (language) {
+    case 'javascript':
+    case 'typescript':
+      chunks = parseJavaScriptFile(content);
+      break;
+    default:
+      // Fallback to basic chunking for unsupported languages
+      const lines = content.split('\n');
+      chunks = lines.reduce((acc, _, i) => {
+        if (i % CHUNK_TARGET_TOKENS === 0) {
+          const chunkLines = lines.slice(i, i + CHUNK_TARGET_TOKENS);
+          acc.push({
+            id: uuidv4(),
+            content: chunkLines.join('\n'),
+            filePath,
+            startLine: i + 1,
+            endLine: i + chunkLines.length,
+            chunkType: 'general',
+            language,
+            sessionId,
+            complexity: estimateTokenCount(chunkLines.join('\n'))
+          });
+        }
+        return acc;
+      }, [] as CodeChunk[]);
+  }
+
+  // Set common metadata
+  chunks.forEach(chunk => {
+    chunk.filePath = filePath;
+    chunk.sessionId = sessionId;
+    chunk.language = language;
+  });
+
+  return chunks;
 } 
