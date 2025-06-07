@@ -213,6 +213,67 @@ export class ApiClient {
     return this.request<BuildGuideResponse>('/build-guide', 'POST', { sessionId });
   }
 
+  async getBuildGuideStream(sessionId: string, onUpdate: (data: any) => void, onComplete: () => void, onError: (error: string) => void): Promise<void> {
+    console.log("API Client: Requesting build guide stream for session:", sessionId);
+    try {
+      const response = await fetch(`${this.baseUrl}/build-guide-stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API Client: Stream request failed with status", response.status, errorText);
+        onError(`Failed to get build guide stream: HTTP ${response.status} - ${errorText}`);
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        onError("Failed to get readable stream from response.");
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex;
+        while ((newlineIndex = buffer.indexOf('\n\n')) !== -1) {
+          const message = buffer.substring(0, newlineIndex);
+          buffer = buffer.substring(newlineIndex + 2);
+
+          if (message.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(message.substring(6));
+              onUpdate(data);
+              if (data.type === 'complete') {
+                onComplete();
+                reader.releaseLock();
+                return;
+              }
+            } catch (parseError) {
+              console.error("API Client: Error parsing stream message:", parseError, message);
+              onError(`Error parsing stream message: ${message}`);
+            }
+          }
+        }
+      }
+      onComplete();
+    } catch (error: any) {
+      console.error("API Client: Stream error:", error);
+      onError(error.message || "An unknown error occurred during streaming");
+    }
+  }
+
   async getVisualizationData(sessionId: string): Promise<VisualizeResponse> {
     return this.request<VisualizeResponse>('/visualize', 'POST', { sessionId });
   }

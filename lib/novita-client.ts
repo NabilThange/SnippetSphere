@@ -32,6 +32,7 @@ interface SummarizeResponse {
 class NovitaClient {
   private apiKey: string;
   private client: AxiosInstance;
+  private cache = new Map<string, SummarizeResponse>();
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
@@ -99,6 +100,61 @@ class NovitaClient {
         throw new Error(`An unexpected error occurred: ${error}`);
       }
     }
+  }
+
+  async teachCodeCreation(code: string, fileName: string, stepNumber: number, model: string = 'deepseek/deepseek-v3-0324', retries = 3): Promise<SummarizeResponse> {
+    const cacheKey = `${fileName}-${code.slice(0, 100)}-${stepNumber}`;
+
+    if (this.cache.has(cacheKey)) {
+      console.log(`Cache hit for ${fileName} (Step ${stepNumber})`);
+      return this.cache.get(cacheKey)!;
+    }
+
+    const teachingPrompt = `
+You are a coding teacher explaining to a complete beginner. 
+Given this code from file "${fileName}", explain step-by-step how a beginner would CREATE this from scratch.
+
+Rules:
+- Start with "STEP ${stepNumber}: [Action]"
+- Use simple, child-friendly language
+- Explain WHY each part is needed
+- Break complex concepts into tiny steps
+- Use analogies when helpful
+- **Format your response using Markdown (e.g., # for headings, **bold**, *italics*, \`code blocks\`).**
+
+Code to teach:
+${code}
+
+Respond as if teaching a 12-year-old how to build this.`;
+
+    const messages = [
+      { role: 'system', content: 'You are a patient coding teacher who explains things step-by-step to beginners and uses Markdown for clear formatting.' },
+      { role: 'user', content: teachingPrompt }
+    ];
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const chatResponse = await this.chatCompletion(messages, model);
+        const result = { summary: chatResponse.choices[0]?.message?.content || '' };
+        this.cache.set(cacheKey, result);
+        console.log(`Cached result for ${fileName} (Step ${stepNumber})`);
+        return result;
+      } catch (error) {
+        console.error(`Error teaching code creation for ${fileName} (Step ${stepNumber}), attempt ${attempt}:`, error);
+        if (attempt === retries) {
+          if (axios.isAxiosError(error)) {
+            throw new Error(`Failed to teach code creation after ${retries} attempts: ${error.response?.data?.message || error.message}`);
+          } else {
+            throw new Error(`An unexpected error occurred after ${retries} attempts: ${error}`);
+          }
+        }
+        // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+        console.log(`Retrying for ${fileName} (Step ${stepNumber})...`);
+      }
+    }
+    // This part should technically not be reached if retries are handled correctly
+    throw new Error("Failed to teach code creation after multiple attempts.");
   }
 }
 

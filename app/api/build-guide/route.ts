@@ -4,6 +4,9 @@ import { getMilvusClient, COLLECTION_NAME, queryBySessionId } from '../../../lib
 
 const novitaClient = new NovitaClient(process.env.NOVITA_API_KEY || '');
 
+// Add BATCH_SIZE for concurrent processing
+const BATCH_SIZE = 5; // Adjust based on Novita.ai rate limits
+
 // Type definitions for better type safety
 interface BuildStep {
   stepNumber: number;
@@ -67,69 +70,83 @@ export async function POST(req: NextRequest) {
     console.log(`Found ${sessionChunks.length} chunks for session ${sessionId}`);
 
     const buildSteps: BuildStep[] = [];
-    let stepNumber = 1;
 
-    // Process each chunk and generate build steps
-    for (const chunk of sessionChunks) {
-      try {
-        // Ensure chunk has required properties with fallbacks
-        const filePath = chunk.file_path || chunk.filePath || 'Unknown file';
-        const content = chunk.content || '';
+    // Process chunks in batches to respect rate limits and improve concurrency
+    for (let i = 0; i < sessionChunks.length; i += BATCH_SIZE) {
+      const batch = sessionChunks.slice(i, i + BATCH_SIZE);
+      
+      const batchPromises = batch.map(async (chunk, batchIndex) => {
+        const currentStepNumber = i + batchIndex + 1;
+        console.log(`Processing chunk ${currentStepNumber}/${sessionChunks.length} for file: ${chunk.file_path || chunk.filePath || 'Unknown file'}`);
         
-        // Skip empty chunks
-        if (!content || content.trim() === '') {
-          console.warn(`Skipping empty chunk for file: ${filePath}`);
-          continue;
-        }
-
-        // Extract file information
-        const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || 'Unknown';
-        const fileExtension = fileName.includes('.') ? fileName.split('.').pop() || '' : '';
-
-        let explanation = 'No explanation generated.';
-        
-        // Generate explanation/summary
         try {
-          // Check if novitaClient has summarizeText method
-          if (novitaClient.summarizeText && typeof novitaClient.summarizeText === 'function') {
-            const summarizeResponse = await novitaClient.summarizeText(content);
-            explanation = summarizeResponse?.summary || 'Failed to generate summary.';
-          } else {
-            // Fallback: Create a simple explanation based on content
-            explanation = generateSimpleExplanation(content, fileName, fileExtension);
+          const filePath = chunk.file_path || chunk.filePath || 'Unknown file';
+          const content = chunk.content || '';
+          
+          if (!content.trim()) {
+            console.warn(`Skipping empty chunk for file: ${filePath}`);
+            return null; // Return null for skipped chunks
           }
-        } catch (summarizeError) {
-          console.error(`Error summarizing content for ${filePath}:`, summarizeError);
-          explanation = generateSimpleExplanation(content, fileName, fileExtension);
+
+          const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || 'Unknown';
+          const fileExtension = fileName.includes('.') ? fileName.split('.').pop() || '' : '';
+
+          let explanation = 'No explanation generated.';
+          
+          try {
+            if (novitaClient.teachCodeCreation && typeof novitaClient.teachCodeCreation === 'function') {
+              console.log(`Calling AI for teaching explanation for ${fileName} (Step ${currentStepNumber})...`);
+              const teachingResponse = await novitaClient.teachCodeCreation(content, fileName, currentStepNumber);
+              explanation = teachingResponse?.summary || 'Failed to generate teaching explanation.';
+              console.log(`AI teaching explanation generated for ${fileName} (Step ${currentStepNumber}).`);
+            } else {
+              console.log(`Using fallback explanation for ${fileName} (Step ${currentStepNumber})...`);
+              explanation = generateTeachingExplanation(content, fileName, fileExtension, currentStepNumber);
+              console.log(`Fallback explanation generated for ${fileName} (Step ${currentStepNumber}).`);
+            }
+          } catch (teachingError) {
+            console.error(`Error generating teaching explanation for ${filePath}:`, teachingError);
+            explanation = generateTeachingExplanation(content, fileName, fileExtension, currentStepNumber);
+            console.log(`Fallback explanation generated after error for ${fileName} (Step ${currentStepNumber}).`);
+          }
+
+          if (!explanation || explanation.trim() === '') {
+            explanation = `STEP ${currentStepNumber}: Review the code for ${fileName}`;
+            console.warn(`Explanation was empty, set to default for ${fileName} (Step ${currentStepNumber}).`);
+          }
+
+          const step = {
+            stepNumber: currentStepNumber,
+            filePath: filePath,
+            content: content,
+            explanation: explanation,
+            fileName: fileName,
+            fileExtension: fileExtension,
+            chunkType: chunk.chunkType || 'code',
+            startLine: chunk.startLine,
+            endLine: chunk.endLine
+          };
+          console.log(`Successfully prepared step ${currentStepNumber} for ${fileName}.`);
+          return step;
+        } catch (chunkError) {
+          console.error(`Error processing chunk for ${chunk.file_path || chunk.filePath || 'Unknown file'}:`, chunkError);
+          return null; // Return null for chunks that failed processing
         }
-
-        // Ensure explanation is not empty
-        if (!explanation || explanation.trim() === '') {
-          explanation = `Code chunk from ${fileName}`;
-        }
-
-        buildSteps.push({
-          stepNumber,
-          filePath: filePath,
-          content: content,
-          explanation: explanation,
-          fileName: fileName,
-          fileExtension: fileExtension,
-          chunkType: chunk.chunkType || 'code',
-          startLine: chunk.startLine,
-          endLine: chunk.endLine
-        });
-
-        stepNumber++;
-      } catch (chunkError) {
-        console.error('Error processing chunk:', chunkError);
-        // Continue with next chunk instead of failing entire request
-        continue;
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      buildSteps.push(...batchResults.filter(step => step !== null)); // Filter out nulls
+      
+      // Add delay between batches to respect rate limits
+      if (i + BATCH_SIZE < sessionChunks.length) {
+        console.log(`Waiting ${1000}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
       }
     }
 
     // Check if any valid steps were generated
     if (buildSteps.length === 0) {
+      console.log('No valid build steps were generated after processing all chunks.');
       return NextResponse.json({ 
         success: false, 
         message: 'No valid build steps could be generated from the indexed code.', 
@@ -137,7 +154,7 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`Generated ${buildSteps.length} build steps`);
+    console.log(`Finished processing chunks. Generated ${buildSteps.length} build steps.`);
 
     return NextResponse.json({ 
       success: true, 
@@ -177,25 +194,43 @@ export async function POST(req: NextRequest) {
 }
 
 // Fallback function to generate simple explanations
-function generateSimpleExplanation(content: string, fileName: string, fileExtension: string): string {
+function generateTeachingExplanation(content: string, fileName: string, fileExtension: string, stepNumber: number): string {
   if (!content || content.trim() === '') {
-    return `Empty file: ${fileName}`;
+    return `STEP ${stepNumber}: Create an empty file called ${fileName} - this will be your starting point!`;
   }
 
   const lines = content.split('\n').filter(line => line.trim() !== '');
   const lineCount = lines.length;
   
-  // Try to identify the type of code based on content
-  let codeType = 'code';
-  if (content.includes('function ') || content.includes('const ') || content.includes('let ')) {
-    codeType = 'JavaScript/TypeScript functions and variables';
-  } else if (content.includes('class ') && content.includes('def ')) {
-    codeType = 'Python class definitions';
-  } else if (content.includes('import ') || content.includes('from ')) {
-    codeType = 'import statements';
-  } else if (content.includes('export ')) {
-    codeType = 'export definitions';
+  // Analyze content type and provide basic teaching instructions
+  let instructions = `STEP ${stepNumber}: `;
+  let codeType: string = 'code'; // Initialize codeType at the start of the function
+  
+  if (fileExtension.toLowerCase() === 'html') {
+    instructions += `Create a new HTML file called ${fileName}. Start by typing \`<!DOCTYPE html>\` at the top - this tells the browser you're writing HTML code! Then add your \`<html>\` tags, followed by \`<head>\` for settings and \`<body>\` for what people see.`;
+  } else if (fileExtension.toLowerCase() === 'css') {
+    instructions += `Create a new CSS file called ${fileName}. This file will make your webpage look pretty! Start by writing your first style rule. For example, to change the color of everything, you could write \`body { color: blue; }\`.`;
+  } else if (['js', 'ts', 'jsx', 'tsx'].includes(fileExtension.toLowerCase())) {
+    instructions += `Create a new JavaScript/TypeScript file called ${fileName}. This file will make your webpage interactive! You can start by declaring a simple function like \`function sayHello() { console.log("Hello!"); }\`.`;
+  } else if (fileExtension.toLowerCase() === 'py') {
+    instructions += `Create a new Python file called ${fileName}. This file will run commands! You can start with a simple print statement like \`print("Hello, Python!")\`.`;
+  } else if (['json', 'yaml', 'yml'].includes(fileExtension.toLowerCase())) {
+    instructions += `Create a new configuration file called ${fileName}. This file holds settings for your project, like a recipe book. Start with a simple key-value pair, like \`{ "name": "My Project" }\`.`;
+  } else if (fileExtension.toLowerCase() === 'md') {
+    instructions += `Create a new Markdown file called ${fileName}. This is like a special text file for notes and documentation. Use \`#\` for big titles, \`##\` for smaller ones, and \`- \` for lists!`;
+  } else {
+    // Only assign codeType here if it's the last fallback, otherwise it uses the default.
+    if (content.includes('function ') || content.includes('const ') || content.includes('let ')) {
+      codeType = 'JavaScript/TypeScript functions and variables';
+    } else if (content.includes('class ') && content.includes('def ')) {
+      codeType = 'Python class definitions';
+    } else if (content.includes('import ') || content.includes('from ')) {
+      codeType = 'import statements';
+    } else if (content.includes('export ')) {
+      codeType = 'export definitions';
+    }
+    instructions = `STEP ${stepNumber}: Create a new file named ${fileName} and add the following content. This ${fileExtension.toUpperCase()} file contains ${codeType}.`;
   }
 
-  return `File: ${fileName} (${fileExtension.toUpperCase()}) - Contains ${lineCount} lines of ${codeType}`;
+  return instructions;
 }

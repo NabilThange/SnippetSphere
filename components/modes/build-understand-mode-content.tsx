@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import type { BuildStep } from "@/lib/api-client"
 import { apiClient } from "@/lib/api-client"
 import { useSession } from "@/lib/session-context"
+import ReactMarkdown from 'react-markdown'
 
 interface BuildUnderstandModeContentProps {
   sessionId: string
@@ -33,6 +34,8 @@ export default function BuildUnderstandModeContent({ sessionId }: BuildUnderstan
   const [buildGuideError, setBuildGuideError] = useState<string | null>(null)
   const [showKeyFiles, setShowKeyFiles] = useState(false)
   const [expandedSteps, setExpandedSteps] = useState<number[]>([])
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(0);
 
   // Fetch build guide on sessionId change
   useEffect(() => {
@@ -43,17 +46,37 @@ export default function BuildUnderstandModeContent({ sessionId }: BuildUnderstan
       }
       setIsLoadingBuildGuide(true)
       setBuildGuideError(null)
+      setBuildSteps([]); // Clear previous steps when starting new guide generation
+      setLoadingProgress(0); // Reset progress
+      setTotalSteps(0); // Reset total steps
+
       try {
-        const response = await apiClient.getBuildGuide(sessionId)
-        if (response.success) {
-          setBuildSteps(response.steps)
-        } else {
-          setBuildGuideError(response.message || "Failed to fetch build guide.")
-        }
+        await apiClient.getBuildGuideStream(
+          sessionId,
+          (data) => {
+            if (data.type === 'total') {
+              setTotalSteps(data.count);
+            } else if (data.type === 'step') {
+              setBuildSteps(prev => [...prev, data.step]);
+              setLoadingProgress(prev => prev + 1);
+            } else if (data.type === 'error') {
+              setBuildGuideError(data.message);
+            }
+          },
+          () => {
+            setIsLoadingBuildGuide(false);
+            console.log("Build guide stream completed.");
+          },
+          (error) => {
+            setBuildGuideError(error);
+            setIsLoadingBuildGuide(false);
+            console.error("Build guide stream error:", error);
+          }
+        );
+
       } catch (error: any) {
         console.error("Error fetching build guide:", error)
         setBuildGuideError(error.message || "An unexpected error occurred while fetching the build guide.")
-      } finally {
         setIsLoadingBuildGuide(false)
       }
     }
@@ -109,10 +132,15 @@ export default function BuildUnderstandModeContent({ sessionId }: BuildUnderstan
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-black bg-white mx-auto mb-4 flex items-center justify-center">
-            <div className="w-8 h-8 bg-black animate-pulse"></div>
+          <div className="w-32 h-8 border-4 border-black bg-white mx-auto mb-4 overflow-hidden">
+            <div 
+              className="h-full bg-[#00ff88] transition-all duration-300"
+              style={{ width: `${(loadingProgress / totalSteps) * 100}%` }}
+            ></div>
           </div>
-          <p className="text-[#00ff88] font-black uppercase text-xl font-mono animate-pulse">GENERATING BUILD GUIDE...</p>
+          <p className="text-[#00ff88] font-black uppercase text-xl font-mono">
+            GENERATING... {loadingProgress}/{totalSteps}
+          </p>
         </div>
       </div>
     )
@@ -198,17 +226,22 @@ export default function BuildUnderstandModeContent({ sessionId }: BuildUnderstan
                     {isExpanded ? <ChevronUp className="w-6 h-6 text-black" /> : <ChevronDown className="w-6 h-6 text-black" />}
                   </div>
                 </button>
-                
                 {isExpanded && (
-                  <div className="mt-4 border-t-2 border-black pt-4">
-                    <p className="text-black font-bold text-sm leading-relaxed mb-4">{step.explanation}</p>
-                    {step.content && (
-                      <div className="bg-black border-4 border-black p-4">
-                        <pre className="text-sm font-mono whitespace-pre-wrap overflow-x-auto text-[#00ff88] font-bold">
-                          <code>{step.content}</code>
-                        </pre>
-                      </div>
-                    )}
+                  <div className="mt-4 border-t-4 border-black pt-4">
+                    <h5 className="font-black text-black uppercase mb-2 flex items-center">
+                      <Code className="w-5 h-5 mr-2" /> CODE SNIPPET:
+                    </h5>
+                    <pre className="bg-gray-800 text-white p-3 rounded-md overflow-x-auto text-sm mb-4">
+                      <code>{step.content}</code>
+                    </pre>
+                    <h5 className="font-black text-black uppercase mb-2 flex items-center">
+                      <Rocket className="w-5 h-5 mr-2" /> EXPLANATION:
+                    </h5>
+                    <div className="text-black font-bold text-sm leading-relaxed mb-4">
+                      <ReactMarkdown>
+                        {step.explanation}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 )}
               </div>
