@@ -36,16 +36,27 @@ export interface ChatResponse {
 }
 
 export interface BuildStep {
-  stepNumber: number;
+  id: string;
+  title: string;
+  description: string;
+  explanation: string;
+  status: "pending" | "completed";
+  command: string; // This could be a suggested command to run
+  content?: string; // Optional: relevant code snippet for the step
+  troubleshooting: string[];
+}
+
+export interface KeyFileSummary {
   filePath: string;
-  content: string;
   explanation: string;
 }
 
 export interface BuildGuideResponse {
   success: boolean;
-  message: string;
-  steps: BuildStep[];
+  message?: string;
+  projectOverview: string;
+  buildSteps: BuildStep[];
+  keyFiles: KeyFileSummary[];
 }
 
 export interface VisualizeNode {
@@ -140,7 +151,7 @@ class ApiClient {
   }
 
   async getBuildGuide(sessionId: string): Promise<BuildGuideResponse> {
-    return this.request<BuildGuideResponse>('/build-guide', 'POST', { sessionId });
+    return this.request<BuildGuideResponse>(`/build-guide?sessionId=${sessionId}`, 'GET');
   }
 
   async getVisualizationData(sessionId: string): Promise<VisualizeResponse> {

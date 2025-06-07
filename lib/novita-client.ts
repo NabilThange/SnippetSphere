@@ -52,6 +52,7 @@ class NovitaClient {
         input: input,
         encoding_format: "float",
       });
+      console.log("Raw embedding response from Novita AI:", response.data);
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {

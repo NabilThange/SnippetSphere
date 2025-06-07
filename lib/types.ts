@@ -66,14 +66,55 @@ export interface BuildStep {
   troubleshooting?: string[]
 }
 
+export interface EnhancedChunk {
+  // Core identifiers
+  sessionId: string;
+  chunkId: string;
+  
+  // File information
+  filePath: string;
+  fileName: string;
+  fileExtension: string;
+  
+  // Content data
+  originalContent: string;
+  processedContent: string; // cleaned/normalized version
+  
+  // Structural metadata
+  startLine: number;
+  endLine: number;
+  chunkType: 'component' | 'api' | 'config' | 'utility' | 'style' | 'test';
+  
+  // Analysis metadata (filled during processing)
+  importance: 'critical' | 'important' | 'supporting';
+  dependencies: string[]; // what this chunk imports/uses
+  exports: string[]; // what this chunk provides
+  codePatterns: string[]; // detected patterns like 'react-hook', 'api-route'
+  
+  // AI-generated insights (filled by Novita.AI)
+  explanation: string;
+  purpose: string;
+  complexity: 'simple' | 'moderate' | 'complex';
+}
+
 export interface ProjectAnalysis {
-  language: string
-  framework?: string
-  packageManager: string
-  dependencies: string[]
-  buildSteps: BuildStep[]
-  keyFiles: FileItem[]
-  environment: string[]
+  sessionId: string;
+  
+  // Project Overview data
+  projectType: string; // 'nextjs-app', 'react-spa', 'api-service'
+  techStack: string[];
+  architecture: string; // 'mvc', 'component-based', 'microservice'
+  mainFeatures: string[];
+  
+  // Build Steps data
+  buildOrder: string[]; // ordered list of chunkIds
+  dependencies: Map<string, string[]>; // chunkId -> dependent chunkIds
+  categories: Map<string, string[]>; // 'setup' -> [chunkIds], 'core' -> [chunkIds]
+  
+  // Key Files data
+  criticalFiles: string[]; // file paths
+  importantFiles: string[];
+  supportingFiles: string[];
 }
 
 export type SearchMode = "build-understand" | "search" | "summarize" | "chat" | "visualize"
