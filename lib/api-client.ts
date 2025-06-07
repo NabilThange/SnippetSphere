@@ -1,13 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size?: number;
+  extension?: string;
+  children?: FileNode[];
+  content?: string;
+}
+
 export interface UploadResponse {
   message: string;
-  files: string[];
+  filename: string;
+  size: number;
+  sessionId: string;
+  directoryTree: FileNode;
+  codeFiles: FileNode[];
+  totalCodeFiles: number;
+  tempDir: string;
 }
 
 export interface IndexResponse {
+  success: boolean;
   message: string;
   chunksProcessed: number;
+  processingTime: number;
+  sessionId: string;
 }
 
 export interface SearchResultItem {
@@ -68,11 +87,17 @@ export interface VisualizeResponse {
   };
 }
 
+export interface IndexRequest {
+  codeFiles: FileNode[];
+  tempDir: string;
+  totalFiles: number;
+}
+
 interface ApiClientOptions {
   baseUrl?: string;
 }
 
-class ApiClient {
+export class ApiClient {
   private baseUrl: string;
 
   constructor(options?: ApiClientOptions) {
@@ -95,7 +120,7 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || `API request failed with status ${response.status}`);
       }
       return await response.json();
@@ -106,25 +131,70 @@ class ApiClient {
   }
 
   async uploadFiles(formData: FormData): Promise<UploadResponse> {
-    // For multipart/form-data, fetch handles Content-Type and boundary automatically
+    console.log("API Client: Starting file upload...")
+    
     try {
       const response = await fetch(`${this.baseUrl}/upload`, {
         method: 'POST',
         body: formData,
-      });
+        // Don't set Content-Type header - let browser set it with boundary for multipart/form-data
+      })
+
+      console.log("API Client: Upload response status:", response.status)
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `File upload failed with status ${response.status}`);
+        const errorData = await response.json().catch(() => ({}))
+        console.error("API Client: Upload failed with status", response.status, errorData)
+        throw new Error(`Upload failed: ${errorData.error || errorData.message || `HTTP ${response.status}`}`)
       }
-      return await response.json();
-    } catch (error: any) {
-      console.error('API Client Error (uploadFiles):', error);
-      throw error;
+
+      const data = await response.json() as UploadResponse
+      console.log("API Client: Upload successful, files extracted:", data.totalCodeFiles)
+      
+      return data
+    } catch (error) {
+      console.error("API Client: Upload error:", error)
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error("Upload request failed")
     }
   }
 
-  async indexCode(sessionId: string, filePaths: string[]): Promise<IndexResponse> {
-    return this.request<IndexResponse>('/index', 'POST', { sessionId, filePaths });
+  async indexCode(sessionId: string, indexData: IndexRequest): Promise<void> {
+    console.log("API Client: Starting code indexing for session:", sessionId)
+    
+    try {
+      const response = await fetch(`${this.baseUrl}/index`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          codeFiles: indexData.codeFiles,
+          tempDir: indexData.tempDir,
+          totalFiles: indexData.totalFiles
+        }),
+      })
+
+      console.log("API Client: Index response status:", response.status)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error("API Client: Indexing failed with status", response.status, errorData)
+        throw new Error(`Indexing failed: ${errorData.error || errorData.message || `HTTP ${response.status}`}`)
+      }
+
+      const data = await response.json()
+      console.log("API Client: Indexing successful:", data.message || "Complete")
+    } catch (error) {
+      console.error("API Client: Indexing error:", error)
+      if (error instanceof Error) {
+        throw error
+      }
+      throw new Error("Indexing request failed")
+    }
   }
 
   async searchCode(query: string, sessionId: string, limit?: number): Promise<SearchResponse> {
