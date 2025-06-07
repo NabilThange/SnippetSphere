@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import JSZip from 'jszip';
+import AdmZip from 'adm-zip';
 import { v4 as uuidv4 } from 'uuid';
 
 export const config = {
@@ -62,15 +62,17 @@ export async function POST(request: NextRequest) {
     const uploadedFilePaths: string[] = [];
 
     if (file.type === 'application/zip') {
-      const zip = await JSZip.loadAsync(buffer);
-      for (const filename in zip.files) {
-        const zipEntry = zip.files[filename];
-        if (!zipEntry.dir) {
-          const content = await zipEntry.async('nodebuffer');
-          const filePath = path.join(tempDir, filename);
-          await fs.mkdir(path.dirname(filePath), { recursive: true });
-          await fs.writeFile(filePath, content);
-          uploadedFilePaths.push(filePath);
+      const zip = new AdmZip(Buffer.from(bytes));
+      const zipEntries = zip.getEntries();
+
+      for (const zipEntry of zipEntries) {
+        if (!zipEntry.isDirectory) {
+          const entryPath = path.join(tempDir, zipEntry.entryName);
+          const entryContent = zipEntry.getData();
+
+          await fs.mkdir(path.dirname(entryPath), { recursive: true });
+          await fs.writeFile(entryPath, entryContent);
+          uploadedFilePaths.push(entryPath);
         }
       }
     } else {

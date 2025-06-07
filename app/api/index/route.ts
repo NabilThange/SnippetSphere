@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises'; // Use async fs
 import path from 'path';
-import { CodeChunker } from '../../../lib/code-chunker';
+import { createIntelligentChunks } from '../../../lib/code-chunker';
 import NovitaClient from '../../../lib/novita-client';
 import { getMilvusClient, COLLECTION_NAME } from '../../../lib/milvus';
 import { IndexState } from '@zilliz/milvus2-sdk-node';
@@ -50,7 +50,7 @@ async function processFile(filePath: string, sessionId: string) {
     const fileExtension = path.extname(filePath).toLowerCase().replace('.', '');
     
     // Generate chunks
-    const codeChunks = await CodeChunker.generateChunks(fileContent, fileExtension);
+    const codeChunks = await createIntelligentChunks(fileContent, fileExtension);
     console.log(`Generated ${codeChunks.length} chunks for ${filePath}`);
     
     if (codeChunks.length === 0) {
