@@ -248,58 +248,48 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
       
+      // Save and read content
       const filePath = path.join(tempDir, file.name);
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, buffer);
-      
       const textContent = buffer.toString('utf-8');
-      
-      extractedFiles.push({
-        name: file.name,
-        path: file.name,
-        type: 'file',
-        size: file.size,
-        extension: path.extname(file.name).toLowerCase(),
-        content: textContent
-      });
-      
-      allFilePaths.push(filePath);
+      if (textContent.trim().length === 0) {
+        console.log(`Warning: Empty file content for ${file.name}`);
+      } else {
+        extractedFiles.push({
+          name: file.name,
+          path: file.name,
+          type: 'file',
+          size: file.size,
+          extension: path.extname(file.name).toLowerCase(),
+          content: textContent
+        });
+        allFilePaths.push(filePath);
+      }
     }
 
-    // Validate that we have extracted files
-    if (extractedFiles.length === 0) {
-      console.log('No code files found in upload');
-      return NextResponse.json({
-        error: 'No code files found',
-        message: 'The uploaded file(s) contain no supported code files',
-        supportedExtensions: CODE_EXTENSIONS,
-        filename: file.name
-      }, { status: 400 });
-    }
-
-    // Build directory structure
-    const directoryTree = buildDirectoryTree(allFilePaths.map(p => path.relative(tempDir, p)));
+    // Build directory tree for UI
+    const directoryTree = buildDirectoryTree(extractedFiles.map(f => f.path));
 
     console.log('File upload successful');
     console.log('Total extracted code files:', extractedFiles.length);
     console.log('Extracted files:', extractedFiles.map(f => f.name));
 
     return NextResponse.json({
-      message: 'Files uploaded and processed successfully',
+      message: 'File upload successful',
       filename: file.name,
       size: file.size,
-      sessionId: sessionId,
-      directoryTree: directoryTree,
+      sessionId,
+      directoryTree,
       codeFiles: extractedFiles,
       totalCodeFiles: extractedFiles.length,
-      tempDir: tempDir // Include this for the index API
-    }, { status: 200 });
-
-  } catch (error) {
-    console.error('Upload API Error:', error);
+      tempDir
+    });
+  } catch (error: any) {
+    console.error('Error in upload API:', error);
     return NextResponse.json({
-      error: 'Upload failed',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      error: 'An error occurred during file upload',
+      message: error.message || 'Unknown error'
     }, { status: 500 });
   }
 }
