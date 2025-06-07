@@ -1,10 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import NovitaClient from '../../../lib/novita-client';
 
 const novitaClient = new NovitaClient(process.env.NOVITA_API_KEY || '');
+
+// Helper function to recursively get files
+async function getFilesInDirectory(dir: string, fileList: string[] = []): Promise<string[]> {
+  const files = await fs.readdir(dir, { withFileTypes: true });
+  for (const file of files) {
+    const fullPath = path.join(dir, file.name);
+    if (file.isDirectory()) {
+      await getFilesInDirectory(fullPath, fileList);
+    } else {
+      fileList.push(fullPath);
+    }
+  }
+  return fileList;
+}
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const sessionId = searchParams.get('sessionId');
+
+  if (!sessionId) {
+    return NextResponse.json({ success: false, message: 'Missing sessionId query parameter.' }, { status: 400 });
+  }
+
+  const sessionDirPath = path.join(os.tmpdir(), `uploads-${sessionId}`);
+
+  try {
+    const extractedFiles = await getFilesInDirectory(sessionDirPath);
+    const relativePaths = extractedFiles.map(filePath => path.relative(sessionDirPath, filePath));
+    return NextResponse.json({ success: true, files: relativePaths }, { status: 200 });
+  } catch (error) {
+    console.error(`Error listing files for session ${sessionId}:`, error);
+    return NextResponse.json({ success: false, message: 'Failed to list files.' }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +56,7 @@ export async function POST(req: NextRequest) {
     let fileContent: string;
 
     try {
-      fileContent = fs.readFileSync(fullPath, 'utf-8');
+      fileContent = await fs.readFile(fullPath, 'utf-8');
     } catch (readError) {
       console.error(`Could not read file ${fullPath}:`, readError);
       return NextResponse.json({ success: false, message: 'File not found or unreadable.', summary: '' }, { status: 404 });

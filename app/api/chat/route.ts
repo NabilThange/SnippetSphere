@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import NovitaClient from '../../../lib/novita-client';
-import { getMilvusClient } from '../../../lib/milvus';
+import { getMilvusClient, searchVectors } from '../../../lib/milvus';
 
 const novitaClient = new NovitaClient(process.env.NOVITA_API_KEY || '');
 
@@ -43,8 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use ZillizClient to search for relevant code chunks
-    const zillizClient = await getMilvusClient();
-    const relevantChunks = await zillizClient.searchVectors(queryEmbedding, sessionId, limit);
+    const relevantChunks = await searchVectors(queryEmbedding, sessionId, limit);
 
     if (relevantChunks.length === 0) {
       return NextResponse.json({

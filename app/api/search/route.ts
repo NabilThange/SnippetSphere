@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import NovitaClient from '../../../lib/novita-client';
-import { getMilvusClient, COLLECTION_NAME, searchBySessionId } from '../../../lib/milvus';
+import { getMilvusClient, COLLECTION_NAME, searchVectors } from '../../../lib/milvus';
 
 const novitaClient = new NovitaClient(process.env.NOVITA_API_KEY || '');
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Failed to generate embedding for the query.', results: [] }, { status: 500 });
     }
 
-    const zillizSearchResults = await searchBySessionId(queryEmbedding, sessionId, limit);
+    const zillizSearchResults = await searchVectors(queryEmbedding, sessionId, limit);
 
     if (zillizSearchResults.length === 0) {
       return NextResponse.json({ success: true, message: 'No matching results found for this query in Zilliz.', results: [] }, { status: 200 });

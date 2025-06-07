@@ -28,9 +28,12 @@ const getMilvusClient = async () => {
 
   // Ensure collection exists
   try {
+    console.log(`Checking if collection '${COLLECTION_NAME}' exists...`);
     const hasCollection = await client.hasCollection({ collection_name: COLLECTION_NAME });
+    console.log(`Collection '${COLLECTION_NAME}' exists: ${hasCollection.value}`);
     
     if (!hasCollection.value) {
+      console.log(`Collection '${COLLECTION_NAME}' not found, creating it...`);
       // Create collection with explicit fields
       await client.createCollection({
         collection_name: COLLECTION_NAME,
@@ -54,11 +57,14 @@ const getMilvusClient = async () => {
           {
             name: 'embedding',
             data_type: DataType.FloatVector,
-            type_params: { dim: '768' }
+            type_params: { dim: '1024' }
           }
         ],
         enable_dynamic_field: true
       });
+
+      // Removed: Index creation logic moved to api/index/route.ts
+
     }
   } catch (error) {
     console.error('Error creating/checking collection:', error);
@@ -83,10 +89,10 @@ async function queryBySessionId(sessionId: string): Promise<any[]> {
   }
 }
 
-async function searchBySessionId(
+async function searchVectors(
   queryEmbedding: number[],
   sessionId: string,
-  limit: number = 10
+  limit: number = 5
 ): Promise<CodeChunk[]> {
   const client = await getMilvusClient();
   try {
@@ -95,7 +101,7 @@ async function searchBySessionId(
       vectors: [queryEmbedding],
       limit: limit,
       filter: `sessionId == "${sessionId}"`,
-      output_fields: ['content', 'file_path', 'embedding', 'sessionId'], // Ensure all CodeChunk fields are fetched
+      output_fields: ['id', 'content', 'file_path', 'embedding', 'sessionId'],
     });
 
     const results: CodeChunk[] = [];
@@ -118,4 +124,4 @@ async function searchBySessionId(
   }
 }
 
-export { getMilvusClient, COLLECTION_NAME, queryBySessionId, searchBySessionId }; 
+export { getMilvusClient, COLLECTION_NAME, queryBySessionId, searchVectors }; 

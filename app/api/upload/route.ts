@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import JSZip from 'jszip';
+import { v4 as uuidv4 } from 'uuid';
 
 export const config = {
   api: {
@@ -54,7 +55,8 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const tempDir = path.join(os.tmpdir(), `uploads-${Date.now()}`);
+    const sessionId = uuidv4();
+    const tempDir = path.join(os.tmpdir(), `uploads-${sessionId}`);
     await fs.mkdir(tempDir, { recursive: true });
 
     const uploadedFilePaths: string[] = [];
@@ -83,6 +85,7 @@ export async function POST(request: NextRequest) {
       filename: file.name,
       size: file.size,
       files: uploadedFilePaths,
+      sessionId: sessionId,
     }, { status: 200 });
 
   } catch (error) {
