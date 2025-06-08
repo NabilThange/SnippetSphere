@@ -137,6 +137,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      openai:
+        specifier: 5.1.1
+        version: 5.1.1(zod@3.25.55)
       react:
         specifier: ^19.1.0
         version: 19.1.0
@@ -2063,6 +2066,18 @@ packages:
 
   one-time@1.0.0:
     resolution: {integrity: sha512-5DXOiRKwuSEcQ/l0kGCF6Q3jcADFv5tSmRaJck/OqkVFcOzutB134KRSfF0xDrL39MNnqxbHBbUUcjZIhTgb2g==}
+
+  openai@5.1.1:
+    resolution: {integrity: sha512-lgIdLqvpLpz8xPUKcEIV6ml+by74mbSBz8zv/AHHebtLn/WdpH4kdXT3/Q5uUKDHg3vHV/z9+G9wZINRX6rkDg==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
 
   package-json-from-dist@1.0.1:
     resolution: {integrity: sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==}
@@ -4507,6 +4522,10 @@ snapshots:
   one-time@1.0.0:
     dependencies:
       fn.name: 1.1.0
+
+  openai@5.1.1(zod@3.25.55):
+    optionalDependencies:
+      zod: 3.25.55
 
   package-json-from-dist@1.0.1: {}
 
