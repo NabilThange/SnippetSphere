@@ -16,25 +16,26 @@ import {
   Rocket,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { BuildGuideResponse, BuildStep, KeyFileSummary } from "@/lib/api-client"
+import type { BuildStep } from "@/lib/api-client"
 import { apiClient } from "@/lib/api-client"
 import { useSession } from "@/lib/session-context"
+import ReactMarkdown from 'react-markdown'
 
-interface GuideModeContentProps {
+interface BuildUnderstandModeContentProps {
   sessionId: string
   isSearching: boolean // This prop might become redundant, but keeping for now
 }
 
-export default function GuideModeContent({ sessionId }: GuideModeContentProps) {
+export default function BuildUnderstandModeContent({ sessionId }: BuildUnderstandModeContentProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [buildSteps, setBuildSteps] = useState<BuildStep[]>([])
-  const [projectOverview, setProjectOverview] = useState<string | null>(null);
-  const [keyFilesSummaries, setKeyFilesSummaries] = useState<KeyFileSummary[]>([]);
   const [isLoadingBuildGuide, setIsLoadingBuildGuide] = useState(true)
   const [buildGuideError, setBuildGuideError] = useState<string | null>(null)
   const [showKeyFiles, setShowKeyFiles] = useState(false)
   const [expandedSteps, setExpandedSteps] = useState<number[]>([])
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(0);
 
   // Fetch build guide on sessionId change
   useEffect(() => {
@@ -45,19 +46,37 @@ export default function GuideModeContent({ sessionId }: GuideModeContentProps) {
       }
       setIsLoadingBuildGuide(true)
       setBuildGuideError(null)
+      setBuildSteps([]); // Clear previous steps when starting new guide generation
+      setLoadingProgress(0); // Reset progress
+      setTotalSteps(0); // Reset total steps
+
       try {
-        const response = await apiClient.getBuildGuide(sessionId)
-        if (response.success) {
-          setBuildSteps(response.steps)
-          setProjectOverview(response.projectOverview)
-          setKeyFilesSummaries(response.keyFilesSummaries)
-        } else {
-          setBuildGuideError(response.message || "Failed to fetch build guide.")
-        }
+        await apiClient.getBuildGuideStream(
+          sessionId,
+          (data) => {
+            if (data.type === 'total') {
+              setTotalSteps(data.count);
+            } else if (data.type === 'step') {
+              setBuildSteps(prev => [...prev, data.step]);
+              setLoadingProgress(prev => prev + 1);
+            } else if (data.type === 'error') {
+              setBuildGuideError(data.message);
+            }
+          },
+          () => {
+            setIsLoadingBuildGuide(false);
+            console.log("Build guide stream completed.");
+          },
+          (error) => {
+            setBuildGuideError(error);
+            setIsLoadingBuildGuide(false);
+            console.error("Build guide stream error:", error);
+          }
+        );
+
       } catch (error: any) {
         console.error("Error fetching build guide:", error)
         setBuildGuideError(error.message || "An unexpected error occurred while fetching the build guide.")
-      } finally {
         setIsLoadingBuildGuide(false)
       }
     }
@@ -113,10 +132,15 @@ export default function GuideModeContent({ sessionId }: GuideModeContentProps) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-black bg-white mx-auto mb-4 flex items-center justify-center">
-            <div className="w-8 h-8 bg-black animate-pulse"></div>
+          <div className="w-32 h-8 border-4 border-black bg-white mx-auto mb-4 overflow-hidden">
+            <div 
+              className="h-full bg-[#00ff88] transition-all duration-300"
+              style={{ width: `${(loadingProgress / totalSteps) * 100}%` }}
+            ></div>
           </div>
-          <p className="text-[#00ff88] font-black uppercase text-xl font-mono animate-pulse">GENERATING BUILD GUIDE...</p>
+          <p className="text-[#00ff88] font-black uppercase text-xl font-mono">
+            GENERATING... {loadingProgress}/{totalSteps}
+          </p>
         </div>
       </div>
     )
@@ -134,12 +158,12 @@ export default function GuideModeContent({ sessionId }: GuideModeContentProps) {
     )
   }
 
-  if (buildSteps.length === 0 && !projectOverview && keyFilesSummaries.length === 0) {
+  if (buildSteps.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center py-12 border-4 border-black bg-white shadow-[6px_6px_0px_#000000] max-w-2xl">
           <p className="text-black font-black uppercase text-xl font-mono px-8">
-            NO BUILD STEPS OR PROJECT OVERVIEW FOUND FOR THIS CODEBASE. IT MIGHT BE TOO SMALL OR UNSUPPORTED.
+            NO BUILD STEPS FOUND FOR THIS CODEBASE. IT MIGHT BE TOO SMALL OR UNSUPPORTED.
           </p>
         </div>
       </div>
@@ -155,16 +179,14 @@ export default function GuideModeContent({ sessionId }: GuideModeContentProps) {
         </div>
       </div>
 
-      {/* Project Overview */}
-      {projectOverview && (
-        <div className="bg-white border-4 border-black p-6 shadow-[6px_6px_0px_#000000]">
-          <div className="flex items-center mb-4">
-            <Book className="w-6 h-6 text-black mr-3" />
-            <h3 className="text-xl font-black uppercase text-black">PROJECT OVERVIEW</h3>
-          </div>
-          <p className="text-black font-bold text-lg leading-relaxed whitespace-pre-wrap">{projectOverview}</p>
+      {/* Project Overview - Simplified */}
+      <div className="bg-white border-4 border-black p-6 shadow-[6px_6px_0px_#000000]">
+        <div className="flex items-center mb-4">
+          <Book className="w-6 h-6 text-black mr-3" />
+          <h3 className="text-xl font-black uppercase text-black">PROJECT OVERVIEW</h3>
         </div>
-      )}
+        <p className="text-black font-bold text-lg">This guide will walk you through the codebase.</p>
+      </div>
 
       {/* Build Steps */}
       <div className="bg-white border-4 border-black shadow-[6px_6px_0px_#000000]">
@@ -188,7 +210,7 @@ export default function GuideModeContent({ sessionId }: GuideModeContentProps) {
                   <div className="flex items-center">
                     {getStepIcon(status)}
                     <h4 className="font-black text-black uppercase ml-2">
-                      STEP {step.stepNumber}: {step.title}
+                      STEP {step.stepNumber}: {step.filePath.split('/').pop()}
                     </h4>
                   </div>
                   <div className="flex items-center">
@@ -204,17 +226,22 @@ export default function GuideModeContent({ sessionId }: GuideModeContentProps) {
                     {isExpanded ? <ChevronUp className="w-6 h-6 text-black" /> : <ChevronDown className="w-6 h-6 text-black" />}
                   </div>
                 </button>
-                
                 {isExpanded && (
-                  <div className="mt-4 border-t-2 border-black pt-4">
-                    <p className="text-black font-bold text-sm leading-relaxed mb-4 whitespace-pre-wrap">{step.explanation}</p>
-                    {step.content && (
-                      <div className="bg-black border-4 border-black p-4">
-                        <pre className="text-sm font-mono whitespace-pre-wrap overflow-x-auto text-[#00ff88] font-bold">
-                          <code>{step.content}</code>
-                        </pre>
-                      </div>
-                    )}
+                  <div className="mt-4 border-t-4 border-black pt-4">
+                    <h5 className="font-black text-black uppercase mb-2 flex items-center">
+                      <Code className="w-5 h-5 mr-2" /> CODE SNIPPET:
+                    </h5>
+                    <pre className="bg-gray-800 text-white p-3 rounded-md overflow-x-auto text-sm mb-4">
+                      <code>{step.content}</code>
+                    </pre>
+                    <h5 className="font-black text-black uppercase mb-2 flex items-center">
+                      <Rocket className="w-5 h-5 mr-2" /> EXPLANATION:
+                    </h5>
+                    <div className="text-black font-bold text-sm leading-relaxed mb-4">
+                      <ReactMarkdown>
+                        {step.explanation}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 )}
               </div>
@@ -223,37 +250,38 @@ export default function GuideModeContent({ sessionId }: GuideModeContentProps) {
         </div>
       </div>
 
-      {/* Key Files Explained */}
-      {keyFilesSummaries.length > 0 && (
-        <div className="bg-white border-4 border-black shadow-[6px_6px_0px_#000000]">
-          <button
-            onClick={() => setShowKeyFiles(!showKeyFiles)}
-            className="w-full border-b-4 border-black p-4 flex items-center justify-between hover:bg-[#F5F5F5] transition-colors"
-          >
-            <div className="flex items-center">
-              <Folder className="w-6 h-6 text-black mr-3" />
-              <h3 className="text-xl font-black uppercase text-black">KEY FILES EXPLAINED</h3>
-            </div>
-            {showKeyFiles ? <ChevronUp className="w-6 h-6 text-black" /> : <ChevronDown className="w-6 h-6 text-black" />}
-          </button>
+      {/* Key Files Explained - Simplified */}
+      <div className="bg-white border-4 border-black shadow-[6px_6px_0px_#000000]">
+        <button
+          onClick={() => setShowKeyFiles(!showKeyFiles)}
+          className="w-full border-b-4 border-black p-4 flex items-center justify-between hover:bg-[#F5F5F5] transition-colors"
+        >
+          <div className="flex items-center">
+            <Folder className="w-6 h-6 text-black mr-3" />
+            <h3 className="text-xl font-black uppercase text-black">KEY FILES EXPLAINED</h3>
+          </div>
+          {showKeyFiles ? <ChevronUp className="w-6 h-6 text-black" /> : <ChevronDown className="w-6 h-6 text-black" />}
+        </button>
 
-          {showKeyFiles && (
-            <div className="p-6">
-              <div className="grid gap-4">
-                {keyFilesSummaries.map((file, index) => (
-                  <div key={index} className="border-2 border-black p-4 bg-[#F5F5F5]">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-black text-black uppercase">{file.filePath}</h4>
-                      <span className="bg-black text-white px-2 py-1 text-xs font-black">KEY FILE</span>
-                    </div>
-                    <p className="text-black font-bold text-sm whitespace-pre-wrap">{file.explanation}</p>
+        {showKeyFiles && buildSteps.length > 0 && (
+          <div className="p-6">
+            <div className="grid gap-4">
+              {buildSteps.map((step, index) => (
+                <div key={index} className="border-2 border-black p-4 bg-[#F5F5F5]">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-black text-black uppercase">{step.filePath}</h4>
+                    {/* Language and functions are not directly available from the simplified BuildStep */}
+                    <span className="bg-black text-white px-2 py-1 text-xs font-black">CODE CHUNK</span>
                   </div>
-                ))}
-              </div>
+                  <p className="text-black font-bold text-sm">
+                    {step.explanation.substring(0, 150)}... {/* Show a snippet of explanation */}
+                  </p>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* Success Message */}
       {completedSteps.length === buildSteps.length && buildSteps.length > 0 && (

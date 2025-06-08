@@ -5,6 +5,7 @@ import { Upload, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api-client"
 import { useSession } from "@/lib/session-context"
+import { FileNode, UploadResponse, IndexRequest } from "@/lib/api-client"
 
 export default function UploadSection() {
   const { setSessionId, isUploading, setIsUploading, setUploadedFilePaths, uploadError, setUploadError } = useSession()
@@ -32,13 +33,35 @@ export default function UploadSection() {
   }
 
   const validateFile = (file: File): string | null => {
-    if (!file.name.endsWith(".zip")) {
-      return "INVALID FILE TYPE. ONLY .ZIP FILES ARE ALLOWED."
+    // Accept both .zip files and individual code files based on backend logic
+    const isZipFile = file.name.toLowerCase().endsWith(".zip") || 
+                     file.type.includes('zip') || 
+                     file.type === 'application/octet-stream'
+    
+    const codeExtensions = [
+      '.js', '.ts', '.jsx', '.tsx',
+      '.py', '.java', '.cpp', '.c', '.h',
+      '.cs', '.php', '.rb', '.go', '.rs',
+      '.html', '.css', '.scss', '.sass',
+      '.json', '.xml', '.yaml', '.yml',
+      '.md', '.txt', '.sql', '.sh', '.bat',
+      '.vue', '.svelte', '.dart', '.kt'
+    ];
+    
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    const isCodeFile = codeExtensions.includes(fileExtension);
+
+    if (!isZipFile && !isCodeFile) {
+      return "INVALID FILE TYPE. ONLY .ZIP FILES OR SUPPORTED CODE FILES ARE ALLOWED."
     }
 
     if (file.size > 100 * 1024 * 1024) {
       // 100MB
       return "FILE TOO LARGE. MAXIMUM SIZE IS 100MB."
+    }
+
+    if (file.size === 0) {
+      return "FILE IS EMPTY. PLEASE SELECT A VALID FILE."
     }
 
     return null
@@ -83,26 +106,77 @@ export default function UploadSection() {
     formData.append("file", file)
 
     try {
-      // Step 1: Upload the zip file
+      console.log("Starting file upload...", {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type
+      })
+
+      // Step 1: Upload the file (zip or single file)
+      setUploadProgress(10)
       const uploadResponse = await apiClient.uploadFiles(formData)
-      const { files: extractedFilePaths } = uploadResponse
+      
+      console.log("Upload response received:", {
+        totalFiles: uploadResponse.totalCodeFiles,
+        sessionId: uploadResponse.sessionId,
+        tempDir: uploadResponse.tempDir,
+        files: uploadResponse.codeFiles?.map((f: FileNode) => f.name)
+      })
 
-      console.log("Upload successful. Extracted files:", extractedFilePaths)
+      // Validate upload response
+      if (!uploadResponse.codeFiles || uploadResponse.codeFiles.length === 0) {
+        throw new Error("No code files were extracted from the upload. Please ensure your file contains supported code files.")
+      }
+
+      if (!uploadResponse.sessionId) {
+        throw new Error("Upload successful but no session ID received. Please try again.")
+      }
+
+      // Set uploaded file paths for session context
+      const extractedFilePaths = uploadResponse.codeFiles.map((file: FileNode) => file.path)
       setUploadedFilePaths(extractedFilePaths)
-
       setUploadProgress(50)
 
-      // Step 2: Index the uploaded code
-      const currentSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
-      await apiClient.indexCode(currentSessionId, extractedFilePaths)
+      console.log("Starting code indexing...", {
+        sessionId: uploadResponse.sessionId,
+        fileCount: uploadResponse.codeFiles.length
+      })
 
-      console.log("Code indexing complete.")
-      setSessionId(currentSessionId)
+      // Step 2: Index the uploaded code using the sessionId from upload response
+      const indexRequestData: IndexRequest = {
+        codeFiles: uploadResponse.codeFiles,
+        tempDir: uploadResponse.tempDir,
+        totalFiles: uploadResponse.totalCodeFiles
+      };
+      await apiClient.indexCode(uploadResponse.sessionId, indexRequestData)
+
+      console.log("Code indexing complete for session:", uploadResponse.sessionId)
+      
+      // Set session ID after successful indexing
+      setSessionId(uploadResponse.sessionId)
       setUploadProgress(100)
+
+      // Success message
+      console.log(`Upload and indexing complete! Processed ${uploadResponse.totalCodeFiles} code files.`)
 
     } catch (error: any) {
       console.error("Upload/Indexing failed:", error)
-      setUploadError(error.message || "An unexpected error occurred during upload or indexing.")
+      
+      let errorMessage = "An unexpected error occurred during upload or indexing."
+      
+      if (error.message?.includes("No code files found")) {
+        errorMessage = "No supported code files found in the uploaded file. Please upload a file containing code files with supported extensions."
+      } else if (error.message?.includes("400")) {
+        errorMessage = "Server rejected the request. Please check your file format and try again."
+      } else if (error.message?.includes("413")) {
+        errorMessage = "File too large. Please upload a file smaller than 100MB."
+      } else if (error.message?.includes("network") || error.message?.includes("fetch")) {
+        errorMessage = "Network error. Please check your connection and try again."
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
+      setUploadError(errorMessage.toUpperCase())
     } finally {
       setIsUploading(false)
     }
@@ -116,7 +190,7 @@ export default function UploadSection() {
     <div className="mt-8 max-w-3xl mx-auto">
       <div className="text-center mb-8">
         <h2 className="text-3xl font-black uppercase text-black mb-4 font-mono tracking-tight">UPLOAD YOUR CODEBASE</h2>
-        <p className="text-black font-bold text-lg">UPLOAD A .ZIP FILE CONTAINING YOUR CODEBASE TO GET STARTED.</p>
+        <p className="text-black font-bold text-lg">UPLOAD A .ZIP FILE OR INDIVIDUAL CODE FILES TO GET STARTED.</p>
       </div>
 
       <div className="mb-8">
@@ -125,7 +199,7 @@ export default function UploadSection() {
             <div className="w-8 h-8 bg-black text-white flex items-center justify-center mr-2 font-mono font-black">
               1
             </div>
-            <span className="uppercase">UPLOAD .ZIP</span>
+            <span className="uppercase">UPLOAD FILES</span>
           </div>
           <div className="h-1 bg-black w-8"></div>
           <div className="flex items-center">
@@ -146,21 +220,23 @@ export default function UploadSection() {
 
       {!isUploading ? (
         <div
-          className={`border-4 border-dashed border-black p-8 text-center bg-white transition-transform duration-300 ${
-            dragActive ? "transform -translate-y-1 shadow-[8px_8px_0px_#ff3f3f]" : "shadow-[6px_6px_0px_#000000]"
-          } ${uploadError ? "border-[#ff3f3f]" : ""}`}
+          className={`border-4 border-dashed border-black p-8 text-center bg-white transition-transform duration-300 ${dragActive ? "transform -translate-y-1 shadow-[8px_8px_0px_#ff3f3f]" : "shadow-[6px_6px_0px_#000000]"} ${uploadError ? "border-[#ff3f3f]" : ""}`}
           onDragEnter={handleDrag}
           onDragOver={handleDrag}
           onDragLeave={handleDrag}
           onDrop={handleDrop}
         >
-          <input ref={fileInputRef} type="file" accept=".zip" onChange={handleChange} className="hidden" />
+          <input 
+            ref={fileInputRef} 
+            type="file" 
+            accept=".zip,.js,.ts,.jsx,.tsx,.py,.java,.cpp,.c,.h,.cs,.php,.rb,.go,.rs,.html,.css,.scss,.sass,.json,.xml,.yaml,.yml,.md,.txt,.sql,.sh,.bat,.vue,.svelte,.dart,.kt" 
+            onChange={handleChange} 
+            className="hidden" 
+          />
 
           <div className="flex flex-col items-center justify-center">
             <Upload
-              className={`w-16 h-16 mb-4 ${
-                dragActive ? "text-[#ff3f3f]" : "text-black"
-              } ${uploadError ? "text-[#ff3f3f]" : ""}`}
+              className={`w-16 h-16 mb-4 ${dragActive ? "text-[#ff3f3f]" : "text-black"} ${uploadError ? "text-[#ff3f3f]" : ""}`}
             />
 
             <p className="text-2xl font-black mb-2 uppercase font-mono">
@@ -177,12 +253,14 @@ export default function UploadSection() {
               BROWSE FILES
             </Button>
 
-            <p className="text-sm font-bold mt-4 uppercase">ONLY .ZIP FILES UP TO 100MB ARE SUPPORTED</p>
+            <p className="text-sm font-bold mt-4 uppercase">
+              SUPPORTED: .ZIP FILES OR CODE FILES (.JS, .TS, .PY, .HTML, ETC.) UP TO 100MB
+            </p>
 
             {uploadError && (
               <div className="mt-4 bg-[#ff3f3f] border-4 border-black p-4 text-white font-black uppercase flex items-center shadow-[4px_4px_0px_#000000]">
                 <X className="w-6 h-6 mr-2" />
-                {uploadError}
+                <span className="text-sm">{uploadError}</span>
               </div>
             )}
           </div>
@@ -198,9 +276,11 @@ export default function UploadSection() {
                 <span className="text-black font-black text-sm uppercase font-mono">{Math.round(uploadProgress)}%</span>
               </div>
             </div>
-            <p className="text-black font-black uppercase font-mono">
-              {uploadProgress < 100
-                ? `UPLOADING & INDEXING YOUR CODEBASE — ${Math.round(uploadProgress)}%`
+            <p className="text-black font-black uppercase font-mono text-center">
+              {uploadProgress < 50
+                ? "UPLOADING & EXTRACTING FILES..."
+                : uploadProgress < 100
+                ? "INDEXING CODE FOR AI PROCESSING..."
                 : "PROCESSING COMPLETE! READY TO EXPLORE."}
             </p>
           </div>

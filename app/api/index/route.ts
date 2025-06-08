@@ -14,6 +14,17 @@ const POLLING_INTERVAL = 2000;
 const MAX_CONCURRENT_FILES = 5; // Process max 5 files concurrently
 const MAX_CONCURRENT_EMBEDDINGS = 10; // Process max 10 embeddings concurrently
 const BATCH_SIZE = 20; // Process embeddings in batches
+const MAX_RETRIES = 30; // Max attempts for index polling
+
+interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size?: number;
+  extension?: string;
+  children?: FileNode[];
+  content?: string; // Only for code files
+}
 
 // Utility function for controlled concurrency
 async function processConcurrently<T, R>(
@@ -42,12 +53,12 @@ async function processConcurrently<T, R>(
   return results;
 }
 
-// Optimized file processing function
-async function processFile(filePath: string, sessionId: string) {
+// New function to process code file content directly
+async function processCodeFileContent(file: FileNode, sessionId: string) {
   try {
-    // Use async file reading
-    const fileContent = await fs.readFile(filePath, 'utf-8');
-    const fileExtension = path.extname(filePath).toLowerCase().replace('.', '');
+    const fileContent = file.content || '';
+    const filePath = file.path;
+    const fileExtension = file.extension || '';
     
     // Generate chunks
     const codeChunks = await createIntelligentChunks(fileContent, fileExtension);
@@ -57,7 +68,6 @@ async function processFile(filePath: string, sessionId: string) {
       return [];
     }
 
-    // Process embeddings in batches with concurrency control
     const embeddingsToInsert: Array<{
       content: string;
       file_path: string;
@@ -68,7 +78,6 @@ async function processFile(filePath: string, sessionId: string) {
       chunkType?: string;
     }> = [];
 
-    // Process chunks in smaller concurrent batches
     const processChunk = async (chunk: any) => {
       try {
         const embeddingResponse = await novitaClient.generateEmbeddings(chunk.content);
@@ -91,14 +100,12 @@ async function processFile(filePath: string, sessionId: string) {
       }
     };
 
-    // Process chunks with controlled concurrency
     const results = await processConcurrently(
       codeChunks,
       processChunk,
       MAX_CONCURRENT_EMBEDDINGS
     );
 
-    // Filter out null results
     const validResults = results.filter(result => result !== null);
     embeddingsToInsert.push(...validResults);
 
@@ -106,7 +113,7 @@ async function processFile(filePath: string, sessionId: string) {
     return embeddingsToInsert;
 
   } catch (error) {
-    console.warn(`Could not process file ${filePath}:`, error);
+    console.warn(`Could not process file ${file.path}:`, error);
     return [];
   }
 }
@@ -142,8 +149,9 @@ async function createIndexIfNeeded(milvusClient: any, totalEmbeddings: number) {
     // Optimized polling with exponential backoff
     let elapsedTime = 0;
     let pollInterval = POLLING_INTERVAL;
+    let retryCount = 0; // New: retry counter
     
-    while (elapsedTime < MAX_INDEX_WAIT_TIME) {
+    while (elapsedTime < MAX_INDEX_WAIT_TIME && retryCount < MAX_RETRIES) {
       const stateResponse = await milvusClient.getIndexState({
         collection_name: COLLECTION_NAME,
         field_name: 'embedding',
@@ -153,12 +161,12 @@ async function createIndexIfNeeded(milvusClient: any, totalEmbeddings: number) {
       const indexState = stateResponse.state;
       console.log(`Index state: ${indexState} (${Math.round(elapsedTime / 1000)}s elapsed)`);
 
-      if (indexState === IndexState.Finished) {
+      if (indexState === 'Finished' || indexState === 'IndexStateFinished') {
         console.log('Index creation completed successfully');
         return true;
       }
 
-      if (indexState === IndexState.Failed) {
+      if (indexState === 'Failed' || indexState === 'IndexStateFailed') {
         throw new Error('Index creation failed');
       }
 
@@ -166,9 +174,10 @@ async function createIndexIfNeeded(milvusClient: any, totalEmbeddings: number) {
       await new Promise(resolve => setTimeout(resolve, pollInterval));
       elapsedTime += pollInterval;
       pollInterval = Math.min(pollInterval * 1.2, 10000); // Max 10s intervals
+      retryCount++; // Increment retry count
     }
 
-    throw new Error(`Index creation timed out after ${MAX_INDEX_WAIT_TIME / 1000} seconds`);
+    throw new Error(`Index creation timed out after ${MAX_INDEX_WAIT_TIME / 1000} seconds or exceeded ${MAX_RETRIES} retries.`);
     
   } catch (error) {
     console.error('Index creation error:', error);
@@ -181,21 +190,21 @@ export async function POST(req: NextRequest) {
   console.log('Starting indexing process...');
 
   try {
-    const { sessionId, filePaths } = await req.json();
+    const { sessionId, codeFiles } = await req.json(); // Changed to expect codeFiles
 
-    if (!sessionId || !filePaths || !Array.isArray(filePaths)) {
+    if (!sessionId || !codeFiles || !Array.isArray(codeFiles)) {
       return NextResponse.json({ 
         error: 'Invalid request parameters',
-        details: 'SessionId and filePaths are required' 
+        details: 'SessionId and codeFiles array are required' // Updated error message
       }, { status: 400 });
     }
 
-    console.log(`Processing ${filePaths.length} files...`);
+    console.log(`Processing ${codeFiles.length} code files...`); // Updated log
 
     // Process files concurrently with controlled concurrency
     const allEmbeddings = await processConcurrently(
-      filePaths,
-      (filePath) => processFile(filePath, sessionId),
+      codeFiles, // Changed from filePaths to codeFiles
+      (file: FileNode) => processCodeFileContent(file, sessionId), // Use new function
       MAX_CONCURRENT_FILES
     );
 
@@ -252,28 +261,22 @@ export async function POST(req: NextRequest) {
     console.log(`Collection loaded in ${loadTime}ms`);
 
     const totalTime = Date.now() - startTime;
+    console.log(`Indexing process completed in ${totalTime}ms`);
 
     return NextResponse.json({ 
-      message: 'Code indexed and embeddings generated successfully in Zilliz', 
+      success: true, 
+      message: 'Indexing completed successfully',
       chunksProcessed: embeddingsToInsert.length,
-      performance: {
-        totalTime: Math.round(totalTime / 1000 * 100) / 100, // seconds
-        processingTime: Math.round(totalProcessingTime / 1000 * 100) / 100,
-        insertTime: Math.round(insertTime / 1000 * 100) / 100,
-        indexTime: Math.round(indexTime / 1000 * 100) / 100,
-        loadTime: Math.round(loadTime / 1000 * 100) / 100
-      }
+      processingTime: totalTime,
+      sessionId: sessionId
     }, { status: 200 });
 
-  } catch (error: any) {
-    const totalTime = Date.now() - startTime;
-    console.error('Indexing process error:', error);
-    
+  } catch (error) {
+    console.error('Indexing API Error:', error);
     return NextResponse.json({ 
+      success: false,
       error: 'Indexing failed',
-      details: error.message,
-      processingTime: Math.round(totalTime / 1000 * 100) / 100,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: error instanceof Error ? error.message : 'Unknown indexing error'
     }, { status: 500 });
   }
 }

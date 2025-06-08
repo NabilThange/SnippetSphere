@@ -1,63 +1,157 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { querySessionChunksWithMetadata } from '@/lib/milvus';
-import { NovitaConversationSystem } from '@/lib/novita-ai';
-import { EnhancedChunk, ProjectAnalysis, BuildStep } from '@/lib/types';
+import NovitaClient from '../../../lib/novita-client';
+import { queryBySessionId } from '../../../lib/milvus';
+
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get('sessionId');
 
-  if (!sessionId) {
-    return NextResponse.json({ success: false, message: 'Missing sessionId query parameter.' }, { status: 400 });
-  }
+// Add BATCH_SIZE for concurrent processing
+const BATCH_SIZE = 5; // Adjust based on Novita.ai rate limits
+
+// Type definitions for better type safety
+interface BuildStep {
+  stepNumber: number;
+  filePath: string;
+  content: string;
+  explanation: string;
+  fileName?: string;
+  fileExtension?: string;
+  chunkType?: string;
+  startLine?: number;
+  endLine?: number;
+}
+
+
 
   try {
-    console.log(`Received sessionId: ${sessionId}`);
-    // 5.1 Fetch All Relevant Chunks
-    const chunks: EnhancedChunk[] = await querySessionChunksWithMetadata(sessionId, 'importance');
-    console.log(`Found ${chunks.length} chunks for session ${sessionId}`);
-    if (!chunks || chunks.length === 0) {
+    const { sessionId } = await req.json();
+
+    // Validate sessionId
+    if (!sessionId || typeof sessionId !== 'string' || sessionId.trim() === '') {
       return NextResponse.json({
         success: false,
-        message: "No chunks found for this session. Please ensure your code was uploaded and indexed correctly."
+        message: 'Invalid or missing sessionId.',
+        steps: []
+      }, { status: 400 });
+    }
+
+    console.log(`Querying build guide for sessionId: ${sessionId}`);
+
+    // Query session chunks from Milvus
+    let sessionChunks: SessionChunk[];
+    try {
+      sessionChunks = await queryBySessionId(sessionId);
+    } catch (queryError) {
+      console.error('Error querying session chunks:', queryError);
+      return NextResponse.json({
+        success: false,
+        message: 'Failed to retrieve session data from database.',
+        steps: []
+      }, { status: 500 });
+    }
+
+    // Check if any chunks were found
+    if (!sessionChunks || sessionChunks.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'No code indexed for this session ID in Zilliz. Please upload and index code first.', 
+        steps: []
+
       }, { status: 404 });
     }
 
     const novitaConversations = new NovitaConversationSystem();
 
-    // 5.2 Generate the Project Overview
-    const projectOverview = await novitaConversations.analyzeProjectOverview(chunks);
+    const buildSteps: BuildStep[] = [];
 
-    // 5.3 Generate Build Steps
-    // For simplicity, let's sort by importance and then by file path for now.
-    // A more advanced dependency-based sorting would be part of a richer ProjectAnalysis.
-    const sortedChunksForBuildGuide = [...chunks].sort((a, b) => {
-      const importanceOrder = { 'critical': 3, 'important': 2, 'supporting': 1 };
-      const aImportance = importanceOrder[a.importance] || 0;
-      const bImportance = importanceOrder[b.importance] || 0;
-      if (aImportance !== bImportance) {
-        return bImportance - aImportance; // Descending by importance
+    // Process chunks in batches to respect rate limits and improve concurrency
+    for (let i = 0; i < sessionChunks.length; i += BATCH_SIZE) {
+      const batch = sessionChunks.slice(i, i + BATCH_SIZE);
+      
+      const batchPromises = batch.map(async (chunk, batchIndex) => {
+        const currentStepNumber = i + batchIndex + 1;
+        console.log(`Processing chunk ${currentStepNumber}/${sessionChunks.length} for file: ${chunk.file_path || chunk.filePath || 'Unknown file'}`);
+        
+        try {
+          const filePath = chunk.file_path || chunk.filePath || 'Unknown file';
+          const content = chunk.content || '';
+          
+          if (!content.trim()) {
+            console.warn(`Skipping empty chunk for file: ${filePath}`);
+            return null; // Return null for skipped chunks
+          }
+
+          const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || 'Unknown';
+          const fileExtension = fileName.includes('.') ? fileName.split('.').pop() || '' : '';
+
+          let explanation = 'No explanation generated.';
+          
+          try {
+            if (novitaClient.teachCodeCreation && typeof novitaClient.teachCodeCreation === 'function') {
+              console.log(`Calling AI for teaching explanation for ${fileName} (Step ${currentStepNumber})...`);
+              const teachingResponse = await novitaClient.teachCodeCreation(content, fileName, currentStepNumber);
+              explanation = teachingResponse?.summary || 'Failed to generate teaching explanation.';
+              console.log(`AI teaching explanation generated for ${fileName} (Step ${currentStepNumber}).`);
+            } else {
+              console.log(`Using fallback explanation for ${fileName} (Step ${currentStepNumber})...`);
+              explanation = generateTeachingExplanation(content, fileName, fileExtension, currentStepNumber);
+              console.log(`Fallback explanation generated for ${fileName} (Step ${currentStepNumber}).`);
+            }
+          } catch (teachingError) {
+            console.error(`Error generating teaching explanation for ${filePath}:`, teachingError);
+            explanation = generateTeachingExplanation(content, fileName, fileExtension, currentStepNumber);
+            console.log(`Fallback explanation generated after error for ${fileName} (Step ${currentStepNumber}).`);
+          }
+
+          if (!explanation || explanation.trim() === '') {
+            explanation = `STEP ${currentStepNumber}: Review the code for ${fileName}`;
+            console.warn(`Explanation was empty, set to default for ${fileName} (Step ${currentStepNumber}).`);
+          }
+
+          const step = {
+            stepNumber: currentStepNumber,
+            filePath: filePath,
+            content: content,
+            explanation: explanation,
+            fileName: fileName,
+            fileExtension: fileExtension,
+            chunkType: chunk.chunkType || 'code',
+            startLine: chunk.startLine,
+            endLine: chunk.endLine
+          };
+          console.log(`Successfully prepared step ${currentStepNumber} for ${fileName}.`);
+          return step;
+        } catch (chunkError) {
+          console.error(`Error processing chunk for ${chunk.file_path || chunk.filePath || 'Unknown file'}:`, chunkError);
+          return null; // Return null for chunks that failed processing
+        }
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      buildSteps.push(...batchResults.filter(step => step !== null)); // Filter out nulls
+      
+      // Add delay between batches to respect rate limits
+      if (i + BATCH_SIZE < sessionChunks.length) {
+        console.log(`Waiting ${1000}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+
       }
       return a.filePath.localeCompare(b.filePath); // Secondary sort by file path
     });
 
-    const buildSteps: BuildStep[] = await Promise.all(sortedChunksForBuildGuide.map(async (chunk, index) => {
-      const explanation = await novitaConversations.explainBuildStep(chunk, projectOverview);
-      return {
-        id: chunk.chunkId,
-        title: `Step ${index + 1}: ${chunk.fileName} (${chunk.chunkType})`,
-        description: explanation,
-        explanation: explanation, // Duplicated for now, can refine if schema changes
-        status: "pending", // Default status
-        // Provide a snippet of code (e.g., top 10 lines or a relevant portion)
-        command: `CODE_SNIPPET_FOR_${chunk.fileName.toUpperCase().replace(/\./g, '_')}`, // Placeholder for a runnable command/snippet
-        troubleshooting: [],
-      };
-    }));
+    // Check if any valid steps were generated
+    if (buildSteps.length === 0) {
+      console.log('No valid build steps were generated after processing all chunks.');
+      return NextResponse.json({ 
+        success: false, 
+        message: 'No valid build steps could be generated from the indexed code.', 
+        steps: [] 
+      }, { status: 400 });
+    }
 
-    // 5.4 Generate Key Files Summary
-    const keyFilesSummaries: { filePath: string; explanation: string; }[] = [];
-    const criticalAndImportantChunks = chunks.filter(chunk => chunk.importance === 'critical' || chunk.importance === 'important');
+    console.log(`Finished processing chunks. Generated ${buildSteps.length} build steps.`);
 
     await Promise.all(criticalAndImportantChunks.map(async (chunk) => {
       // Determine a reason for importance, could be based on chunk.importance, or derived from its role
@@ -83,4 +177,46 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json({ success: false, message: errorMessage }, { status: 500 });
   }
+}
+
+// Fallback function to generate simple explanations
+function generateTeachingExplanation(content: string, fileName: string, fileExtension: string, stepNumber: number): string {
+  if (!content || content.trim() === '') {
+    return `STEP ${stepNumber}: Create an empty file called ${fileName} - this will be your starting point!`;
+  }
+
+  const lines = content.split('\n').filter(line => line.trim() !== '');
+  const lineCount = lines.length;
+  
+  // Analyze content type and provide basic teaching instructions
+  let instructions = `STEP ${stepNumber}: `;
+  let codeType: string = 'code'; // Initialize codeType at the start of the function
+  
+  if (fileExtension.toLowerCase() === 'html') {
+    instructions += `Create a new HTML file called ${fileName}. Start by typing \`<!DOCTYPE html>\` at the top - this tells the browser you're writing HTML code! Then add your \`<html>\` tags, followed by \`<head>\` for settings and \`<body>\` for what people see.`;
+  } else if (fileExtension.toLowerCase() === 'css') {
+    instructions += `Create a new CSS file called ${fileName}. This file will make your webpage look pretty! Start by writing your first style rule. For example, to change the color of everything, you could write \`body { color: blue; }\`.`;
+  } else if (['js', 'ts', 'jsx', 'tsx'].includes(fileExtension.toLowerCase())) {
+    instructions += `Create a new JavaScript/TypeScript file called ${fileName}. This file will make your webpage interactive! You can start by declaring a simple function like \`function sayHello() { console.log("Hello!"); }\`.`;
+  } else if (fileExtension.toLowerCase() === 'py') {
+    instructions += `Create a new Python file called ${fileName}. This file will run commands! You can start with a simple print statement like \`print("Hello, Python!")\`.`;
+  } else if (['json', 'yaml', 'yml'].includes(fileExtension.toLowerCase())) {
+    instructions += `Create a new configuration file called ${fileName}. This file holds settings for your project, like a recipe book. Start with a simple key-value pair, like \`{ "name": "My Project" }\`.`;
+  } else if (fileExtension.toLowerCase() === 'md') {
+    instructions += `Create a new Markdown file called ${fileName}. This is like a special text file for notes and documentation. Use \`#\` for big titles, \`##\` for smaller ones, and \`- \` for lists!`;
+  } else {
+    // Only assign codeType here if it's the last fallback, otherwise it uses the default.
+    if (content.includes('function ') || content.includes('const ') || content.includes('let ')) {
+      codeType = 'JavaScript/TypeScript functions and variables';
+    } else if (content.includes('class ') && content.includes('def ')) {
+      codeType = 'Python class definitions';
+    } else if (content.includes('import ') || content.includes('from ')) {
+      codeType = 'import statements';
+    } else if (content.includes('export ')) {
+      codeType = 'export definitions';
+    }
+    instructions = `STEP ${stepNumber}: Create a new file named ${fileName} and add the following content. This ${fileExtension.toUpperCase()} file contains ${codeType}.`;
+  }
+
+  return instructions;
 }
