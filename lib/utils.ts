@@ -81,3 +81,12 @@ export function calculateCosineSimilarity(vecA: number[], vecB: number[]): numbe
 
   return dotProduct / (magnitudeA * magnitudeB);
 }
+
+export function generateTeachingExplanation(
+  content: string,
+  fileName: string,
+  fileExtension: string,
+  stepNumber: number
+): string {
+  return `Step ${stepNumber}: Explanation for ${fileName} (${fileExtension}) is not yet implemented.`;
+}

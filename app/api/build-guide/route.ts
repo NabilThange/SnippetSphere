@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import NovitaClient from '../../../lib/novita-client';
-import { getMilvusClient, COLLECTION_NAME, queryBySessionId } from '../../../lib/milvus';
+import { queryBySessionId } from '../../../lib/milvus';
 
 const novitaClient = new NovitaClient(process.env.NOVITA_API_KEY || '');
 
@@ -36,10 +36,10 @@ export async function POST(req: NextRequest) {
 
     // Validate sessionId
     if (!sessionId || typeof sessionId !== 'string' || sessionId.trim() === '') {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Invalid or missing sessionId.', 
-        steps: [] 
+      return NextResponse.json({
+        success: false,
+        message: 'Invalid or missing sessionId.',
+        steps: []
       }, { status: 400 });
     }
 
@@ -51,19 +51,19 @@ export async function POST(req: NextRequest) {
       sessionChunks = await queryBySessionId(sessionId);
     } catch (queryError) {
       console.error('Error querying session chunks:', queryError);
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Failed to retrieve session data from database.', 
-        steps: [] 
+      return NextResponse.json({
+        success: false,
+        message: 'Failed to retrieve session data from database.',
+        steps: []
       }, { status: 500 });
     }
 
     // Check if any chunks were found
     if (!sessionChunks || sessionChunks.length === 0) {
-      return NextResponse.json({ 
-        success: false, 
+      return NextResponse.json({
+        success: false,
         message: 'No code indexed for this session ID in Zilliz. Please upload and index code first.', 
-        steps: [] 
+        steps: []
       }, { status: 404 });
     }
 
