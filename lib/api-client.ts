@@ -46,6 +46,8 @@ export interface SummarizeResponse {
   success: boolean;
   message: string;
   summary: string;
+  summaryType?: string;
+  fileContent?: string;
 }
 
 export interface ChatResponse {
@@ -203,6 +205,10 @@ export class ApiClient {
 
   async summarizeText(sessionId: string, filePath: string): Promise<SummarizeResponse> {
     return this.request<SummarizeResponse>('/summarize', 'POST', { sessionId, filePath });
+  }
+
+  async generateProjectSummary(sessionId: string, summaryType: string = 'overview'): Promise<SummarizeResponse> {
+    return this.request<SummarizeResponse>('/summarize', 'POST', { sessionId, summaryType });
   }
 
   async chatWithCode(message: string, sessionId: string, limit?: number): Promise<ChatResponse> {

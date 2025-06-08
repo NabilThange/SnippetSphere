@@ -12,7 +12,14 @@ class ZillizClient {
   private client: MilvusClient;
   private defaultCollectionName: string = 'code_embeddings';
 
-  constructor(uri: string, token: string) {
+  constructor() {
+    const uri = process.env.ZILLIZ_CLOUD_URI;
+    const token = process.env.ZILLIZ_CLOUD_TOKEN;
+    
+    if (!uri || !token) {
+      throw new Error('Missing Zilliz credentials. Check ZILLIZ_CLOUD_URI and ZILLIZ_CLOUD_TOKEN in .env.local');
+    }
+
     this.client = new MilvusClient({
       address: uri,
       token: token,
@@ -119,6 +126,36 @@ class ZillizClient {
     } catch (error) {
       console.error(`Error querying data for session ${sessionId}:`, error);
       throw new Error(`Failed to query session data: ${error}`);
+    }
+  }
+
+  async getAllChunks(sessionId: string, limit: number = 1000): Promise<CodeChunk[]> {
+    try {
+      console.log(`Getting chunks for session: ${sessionId}`);
+      const queryResult = await this.client.query({
+        collection_name: this.defaultCollectionName,
+        filter: `sessionId == "${sessionId}"`,
+        output_fields: ['content', 'filePath', 'sessionId'],
+        limit: limit
+      });
+
+      const results: CodeChunk[] = [];
+      if (queryResult.data) {
+        queryResult.data.forEach((item: any) => {
+          results.push({
+            id: item.id,
+            content: item.content,
+            filePath: item.filePath,
+            embedding: [], // We don't need embeddings for summarization
+            sessionId: item.sessionId,
+          });
+        });
+      }
+      console.log(`Retrieved ${results.length} chunks`);
+      return results;
+    } catch (error) {
+      console.error(`Error retrieving all chunks for session ${sessionId}:`, error);
+      throw new Error(`Failed to retrieve all chunks: ${error.message}`);
     }
   }
 

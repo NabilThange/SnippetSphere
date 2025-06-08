@@ -29,6 +29,14 @@ interface SummarizeResponse {
   summary: string;
 }
 
+interface OrganizedChunks {
+  mainFiles?: any[];
+  configFiles?: any[];
+  components?: any[];
+  utilities?: any[];
+  others?: any[];
+}
+
 class NovitaClient {
   private apiKey: string;
   private client: AxiosInstance;
@@ -100,6 +108,60 @@ class NovitaClient {
         throw new Error(`An unexpected error occurred: ${error}`);
       }
     }
+  }
+
+  async generateProjectSummary(organizedContent: any, summaryType: string, model: string = 'deepseek/deepseek-v3-turbo'): Promise<SummarizeResponse> {
+    const prompt = this.buildSummaryPrompt(organizedContent, summaryType);
+    
+    try {
+      const response = await fetch('https://api.novita.ai/v3/openai/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.NOVITA_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: model, // Use the recommended model
+          messages: [{
+            role: 'user',
+            content: prompt
+          }],
+          max_tokens: 2000,
+          temperature: 0.3
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Novita API error: ${response.status} - ${errorData.message || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return { summary: data.choices[0]?.message?.content || '' };
+    } catch (error: any) {
+      console.error('Summary generation failed:', error);
+      throw new Error(`Failed to generate summary: ${error.message}`);
+    }
+  }
+
+  private buildSummaryPrompt(organizedContent: any, summaryType: string): string {
+    const files = Object.keys(organizedContent);
+    const fileContents = Object.entries(organizedContent)
+      .map(([fileName, chunks]) => `File: ${fileName}\nContent: ${Array.isArray(chunks) ? chunks.join('\n') : chunks}`)
+      .join('\n\n');
+      
+    const prompts: Record<string, string> = {
+      overview: 'Provide a comprehensive project overview including purpose, technologies used, and architecture.',
+      technical: 'Focus on technical implementation, algorithms, dependencies, and code structure.',
+      setup: 'Create installation and setup instructions with prerequisites and configuration steps.'
+    };
+    
+    return `${prompts[summaryType] || prompts.overview}
+    
+Project Files: ${files.join(', ')}
+
+Code Content:
+${fileContents}`;
   }
 
   async teachCodeCreation(code: string, fileName: string, stepNumber: number, model: string = 'deepseek/deepseek-v3-0324', retries = 3): Promise<SummarizeResponse> {
