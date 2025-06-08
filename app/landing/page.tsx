@@ -45,7 +45,7 @@ export default function LandingPage() {
                 <span className="text-black font-black text-xl">S</span>
               </div>
               <span className="text-2xl font-black uppercase tracking-tight font-mono text-black">
-                SnippetSphere
+                Snipiq
               </span>
             </div>
 
@@ -132,8 +132,13 @@ export default function LandingPage() {
 
             {/* Hero Illustration */}
             <div className="relative w-64 h-40 flex items-center justify-center">
-              <div
-                className="w-[90%] h-[90%] object-cover border-4 border-black shadow-[6px_8px_0px_#000000] bg-blue-500"
+              <video
+                src="/landf.mp4"
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-cover border-4 border-black shadow-[5px_4px_0px_#000000]"
               />
             </div>
           </div>
@@ -321,7 +326,7 @@ export default function LandingPage() {
               Loved by Developers
             </h2>
             <p className="text-xl font-bold text-black max-w-2xl mx-auto">
-              See what developers are saying about SnippetSphere
+              See what developers are saying about Snipiq
             </p>
           </div>
 
@@ -334,7 +339,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <p className="text-lg font-bold text-black mb-6 leading-relaxed">
-                "SnippetSphere completely changed how I navigate large codebases. The semantic search is incredibly accurate!"
+                "Snipiq completely changed how I navigate large codebases. The semantic search is incredibly accurate!"
               </p>
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-black text-[#FFFF00] border-2 border-black flex items-center justify-center mr-4 font-black">
@@ -404,7 +409,7 @@ export default function LandingPage() {
             <span className="text-[#00FF88]">Your Codebase?</span>
           </h2>
           <p className="text-xl font-bold text-white mb-8 max-w-2xl mx-auto">
-            Join thousands of developers who are already using SnippetSphere to understand their code better.
+            Join thousands of developers who are already using Snipiq to understand their code better.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
@@ -450,7 +455,7 @@ export default function LandingPage() {
                   <span className="text-black font-black text-xl">S</span>
                 </div>
                 <span className="text-2xl font-black uppercase tracking-tight font-mono text-black">
-                  SnippetSphere
+                  Snipiq
                 </span>
               </div>
               <p className="text-black font-bold leading-relaxed mb-4">
@@ -486,7 +491,7 @@ export default function LandingPage() {
 
           <div className="border-t-4 border-black mt-8 pt-8 flex flex-col md:flex-row items-center justify-between">
             <div className="text-black font-bold text-sm uppercase mb-4 md:mb-0">
-              © 2024 SnippetSphere. All rights reserved.
+              © 2024 Snipiq. All rights reserved.
             </div>
             <div className="flex items-center space-x-6 text-sm font-bold text-black uppercase">
               <a href="#" className="hover:text-[#FF3F3F] transition-colors">Privacy Policy</a>

@@ -34,9 +34,9 @@ export default function Header() {
         <div className="container mx-auto px-6 max-w-7xl">
           <div className="flex items-center">
             <Link href="/" className="flex items-center gap-3">
-              <Image src="/logo.png" alt="SnippetSphere Logo" width={32} height={32} className="w-8 h-8" />
+              <Image src="/logo.png" alt="Snipiq Logo" width={32} height={32} className="w-8 h-8" />
               <div>
-                <h1 className="text-lg font-black uppercase tracking-tight font-mono text-black">SNIPPETSPHERE</h1>
+                <h1 className="text-lg font-black uppercase tracking-tight font-mono text-black">SNIPIQ</h1>
                 <p className="text-black font-bold text-xs">AI-POWERED SEMANTIC SEARCH</p>
               </div>
             </Link>
@@ -57,11 +57,9 @@ export default function Header() {
         <div className="container mx-auto px-6 max-w-7xl">
           <div className="flex items-center justify-between h-full">
             <Link href="/" className="flex items-center gap-6">
-              <Image src="/logo.png" alt="SnippetSphere Logo" width={48} height={48} className="w-12 h-12" />
+              <Image src="/logo.png" alt="Snipiq Logo" width={48} height={48} className="w-12 h-12" />
               <div>
-                <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight font-mono text-black">
-                  SNIPPETSPHERE
-                </h1>
+                <h1 className="text-2xl font-black uppercase tracking-tight font-mono text-black">SNIPIQ</h1>
                 <p className="text-black font-bold text-xs md:text-sm">AI-POWERED SEMANTIC SEARCH FOR YOUR CODEBASE.</p>
               </div>
             </Link>

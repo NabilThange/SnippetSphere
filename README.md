@@ -1,7 +1,7 @@
-# SnippetSphere 🚀
+# Snipiq 🚀
 
 ## Project Overview
-SnippetSphere is an AI-powered code exploration platform built with Next.js, TypeScript, and Zilliz Cloud.
+Snipiq is an AI-powered code exploration platform built with Next.js, TypeScript, and Zilliz Cloud.
 
 ## Prerequisites
 - Node.js (v18+ recommended)

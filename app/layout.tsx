@@ -9,7 +9,7 @@ import { StagewiseToolbar } from '@stagewise/toolbar-next';
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "SnippetSphere",
+  title: "Snipiq",
   description: "Upload your code and unlock insights through search, chat, summarize, and visualize.",  
 }
 
