@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import NovitaClient from '../../../lib/novita-client';
 import { queryBySessionId } from '../../../lib/milvus';
 
-const novitaClient = new NovitaClient(process.env.NOVITA_API_KEY || '');
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const sessionId = searchParams.get('sessionId');
 
 // Add BATCH_SIZE for concurrent processing
 const BATCH_SIZE = 5; // Adjust based on Novita.ai rate limits
@@ -20,17 +23,8 @@ interface BuildStep {
   endLine?: number;
 }
 
-interface SessionChunk {
-  content: string;
-  file_path: string;
-  sessionId: string;
-  startLine?: number;
-  endLine?: number;
-  chunkType?: string;
-  [key: string]: any; // Allow for additional properties
-}
 
-export async function POST(req: NextRequest) {
+
   try {
     const { sessionId } = await req.json();
 
@@ -64,10 +58,11 @@ export async function POST(req: NextRequest) {
         success: false,
         message: 'No code indexed for this session ID in Zilliz. Please upload and index code first.', 
         steps: []
+
       }, { status: 404 });
     }
 
-    console.log(`Found ${sessionChunks.length} chunks for session ${sessionId}`);
+    const novitaConversations = new NovitaConversationSystem();
 
     const buildSteps: BuildStep[] = [];
 
@@ -141,8 +136,10 @@ export async function POST(req: NextRequest) {
       if (i + BATCH_SIZE < sessionChunks.length) {
         console.log(`Waiting ${1000}ms before next batch...`);
         await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+
       }
-    }
+      return a.filePath.localeCompare(b.filePath); // Secondary sort by file path
+    });
 
     // Check if any valid steps were generated
     if (buildSteps.length === 0) {
@@ -156,40 +153,29 @@ export async function POST(req: NextRequest) {
 
     console.log(`Finished processing chunks. Generated ${buildSteps.length} build steps.`);
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Build guide generated successfully from Zilliz data.', 
-      steps: buildSteps,
-      totalSteps: buildSteps.length,
-      sessionId: sessionId
+    await Promise.all(criticalAndImportantChunks.map(async (chunk) => {
+      // Determine a reason for importance, could be based on chunk.importance, or derived from its role
+      const whyImportant = `This file is categorized as ${chunk.importance} due to its role as a ${chunk.chunkType}.`;
+      const explanation = await novitaConversations.explainKeyFile(chunk, whyImportant);
+      keyFilesSummaries.push({ filePath: chunk.filePath, explanation: explanation });
+    }));
+
+    // 5.5 Compile the Final Guide
+    return NextResponse.json({
+      success: true,
+      projectOverview: projectOverview,
+      buildSteps: buildSteps,
+      keyFiles: keyFilesSummaries,
     }, { status: 200 });
 
   } catch (error: any) {
-    console.error('API error in build-guide route:', error);
-    
-    // Handle specific error types
-    if (error.message?.includes('not available during build')) {
-      return NextResponse.json({
-        success: false,
-        message: 'Vector database not available during build.',
-        steps: []
-      }, { status: 503 });
+    console.error("Error generating build guide:", error);
+    let errorMessage = error.message || 'Failed to generate build guide.';
+    // Check if the error suggests an invalid JSON response from Novita AI
+    if (error.message && (error.message.includes("Unexpected token '<'") || error.message.includes("invalid JSON"))) {
+      errorMessage = "AI returned invalid JSON. Please check Novita AI API key and model.";
     }
-
-    if (error.message?.includes('ENOTFOUND') || error.message?.includes('ECONNREFUSED')) {
-      return NextResponse.json({
-        success: false,
-        message: 'Database connection failed. Please try again later.',
-        steps: []
-      }, { status: 503 });
-    }
-
-    return NextResponse.json({ 
-      success: false, 
-      message: 'An unexpected error occurred during build guide generation.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      steps: [] 
-    }, { status: 500 });
+    return NextResponse.json({ success: false, message: errorMessage }, { status: 500 });
   }
 }
 

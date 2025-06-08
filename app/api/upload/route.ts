@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import JSZip from 'jszip';
+import AdmZip from 'adm-zip';
 import { v4 as uuidv4 } from 'uuid';
 
 const CODE_EXTENSIONS = [
@@ -224,6 +224,7 @@ export async function POST(request: NextRequest) {
       const zipExtractedFiles = await processZipFile(buffer, tempDir);
       extractedFiles.push(...zipExtractedFiles);
       allFilePaths.push(...zipExtractedFiles.map(f => path.join(tempDir, f.path)));
+
     } else {
       console.log('Processing single file:', file.name);
       
